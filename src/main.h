@@ -23,55 +23,31 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 // ================================================================================================
 
-#ifndef MAIN_H
+#if !defined(MAIN_H)
 #define MAIN_H
 
-const char software_version[] = "0.01.000";
 
-// Preferences saved in EEPROM
-struct eeprom_preference {
-	char    signature[9]    		= "BIADUD01";	// Signature for this data format
-	char    password[10]     		= "";			// The access point is open by defaut
-//	char    sms_command[9]  		= "";			// Par défaut on met toujours les coordonnées dans le SMS envoyé
-	char    ssid_access_point[33]	= "";			// By default the ssid of the access point is based on the MAC address
-	char	uav_id[31]				= "000MB1000000000000000000000001";
-									// CCC								Constructor code (must be set to "000" for DIY maker)
-									//    MMM							Beacon model (you can modify it) (e.g.: MB1 here is for "MaaaX's Beacon 1")
-									//       111111111111				First mid part of the serial number (you can modify it)
-									//                   222222222222	Last mid part of the serial number (this part will be replaced by MAC address of the board to be unique)
-	char	ip_address[16]			= "8.8.4.4";	// The default android DNS
-	char	ip_gateway[16]			= "8.8.4.4";
-	char	ip_subnetmask[16]		= "255.255.255.0";
-
-//	int timeoutWifi = 45;  // delais deconnection AP wifi
-//	int logAfter = 5 ;   // enregistrement d'un point si déplacement de 5m  (si <0, enregistrement après n millis sec)
-//	int baud = 9600;  // vitesse de transmission avec le GPS   19200 ((OK avec ESP8266), 38400
-//	int nbrMaxTraces = 10; // nobre maximal de traces à conserver
-//	byte hz = 1;  //  taux de rafraichissement du GPS
-//	char formatTrace[4] = "csv";  //  csv gpx
-//	bool logOn = true;  // true: on enregistre; false: pas de trace enregistrée
-//	bool logToujours = true; // enregistrerla trace même si on ne se déplace pas
-//	bool logVitesse = false;
-//	bool logAltitude = true;
-//	bool logHeure = true;
-//	bool arretWifi = true;  // false: ne pas arreter le point d'accès Wifi en vol;  true: arreter le point d'accès
-//	bool basseConso = false;  // true: couper le wifi entre 2 trames.
-//	bool iBusActif = true ; // pour telémesure style FlySky. L'activation dépend de toute façon de l'option define fs_iBus dans fs_option.h
-};
-
-#define DEBUG_HEAP false
-//#define DEBUG_HEAP true
-#ifndef TARGET_ESP32
-	#define dbgHeap(mes) \
-	do { if (DEBUG_HEAP) Serial.printf_P(PSTR("%s %s():%d  FreeContStack: %5d  free: %5d - max: %5d - frag: %3d%% \n "),\
-											mes, __func__, __LINE__,ESP.getFreeContStack(),\
-											ESP.getFreeHeap(), ESP.getMaxFreeBlockSize(),\
-											ESP.getHeapFragmentation());} while (0)
+#if defined(TARGET_ESP32)
+	#if defined(TARGET_ESP32C3)
+		#pragma message "Build for ESP32-C3 board."
+	#elif defined(TARGET_ESP32S3)
+		#pragma message "Build for ESP32-S3 board."
+	#else
+		#pragma message "Build for ESP32 board."
+	#endif
+#elif defined(TARGET_ESP8266)
+	#pragma message "Build for ESP8266 board."
 #else
-	#define dbgHeap(mes) \
-	do { if (DEBUG_HEAP) Serial.printf_P(PSTR("%s %s():%d free: %5d \n "),\
-											mes, __func__, __LINE__,\
-											ESP.getFreeHeap());} while (0)
+	#error "You can build for ESP8266, ESP32, ESP32-C3 or ESP32-S3 boards only !"
 #endif
 
-#endif // #ifndef MAIN_H
+#include <Arduino.h>
+#include "biadud_options.h"
+#include "biadud_preferences.h"
+#include "biadud_wifi.h"
+#include "biadud_web.h"
+#include "biadud_gps.h"
+#include "biadud_beacon.h"
+
+
+#endif // #if !defined(MAIN_H)

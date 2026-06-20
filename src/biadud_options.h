@@ -23,10 +23,10 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 // ================================================================================================
 
-#ifndef OPTIONS_H
-#define OPTIONS_H
+#if !defined(BIADUD_OPTIONS_H)
+#define BIADUD_OPTIONS_H
 
-//
+
 //#define OPTION_UPDATE_OTA				// Pour permettre une mise a jour OTA pour logiciel
 
 //#define OPTION_RECEIVER				// Pour inclure aussi le code récepteur (uniquement pour une carte à base ESP32 / ESP32C3)
@@ -45,20 +45,52 @@
 //--------------------------------------------------------------------------------------------------------
 // Select only one GPS option.
 // If OPTION_GPS_QUECTEL and OPTION_GPS_UBLOX are not selected, the GPS chipset is supposed to be already configured and initialized.
-//#define OPTION_GPS_QUECTEL			// GPS Quectel L80 and GPS based on MediaTek MT3339 chipset
+//#define OPTION_GPS_QUECTEL	TODO	// GPS Quectel L80 and GPS based on MediaTek MT3339 chipset
 #define OPTION_GPS_UBLOX				// GPS Beitian BN-220, BN-180, BN-880 and GPS based on u-blox M8030-KT chipset 
 
 
+//--------------------------------------------------------------------------------------------------------
+//  ESP8266 BOARD CONFIG
+//--------------------------------------------------------------------------------------------------------
+#if defined(TARGET_ESP8266)
+// TODO
+//	#define OPTION_BOARD_PIN_LED			8	// Optional builtin LED pin
+//	#define OPTION_BOARD_PIN_GPS_RX			0	// Connect the board D1 pin on the GPS TX
+//	#define OPTION_BOARD_PIN_GPS_TX			1	// Connect the board D2 pin on the GPS RX
+//	#define OPTION_BOARD_PIN_FACTORY_RESET	2
+#endif
+
+//--------------------------------------------------------------------------------------------------------
+//  ESP32 BOARD CONFIG
+//--------------------------------------------------------------------------------------------------------
+#if defined(TARGET_ESP32)
+// TODO
+//	#define OPTION_BOARD_PIN_LED			8	// Optional builtin LED pin
+//	#define OPTION_BOARD_PIN_GPS_RX			0	// Connect the board D1 pin on the GPS TX
+//	#define OPTION_BOARD_PIN_GPS_TX			1	// Connect the board D2 pin on the GPS RX
+//	#define OPTION_BOARD_PIN_FACTORY_RESET	2
+#endif
 
 //--------------------------------------------------------------------------------------------------------
 //  ESP32-C3 BOARD CONFIG
 //--------------------------------------------------------------------------------------------------------
-#ifdef TARGET_ESP32C3
+#if defined(TARGET_ESP32C3)
 	#define OPTION_BOARD_PIN_LED			8	// Optional builtin LED pin
 	#define OPTION_BOARD_PIN_GPS_RX			0	// Connect the board D1 pin on the GPS TX
 	#define OPTION_BOARD_PIN_GPS_TX			1	// Connect the board D2 pin on the GPS RX
 	#define OPTION_BOARD_PIN_FACTORY_RESET	2
 #endif
 
+//--------------------------------------------------------------------------------------------------------
+//  ESP32-S3 BOARD CONFIG
+//--------------------------------------------------------------------------------------------------------
+#if defined(TARGET_ESP32S3)
+// TODO
+//	#define OPTION_BOARD_PIN_LED			8	// Optional builtin LED pin
+//	#define OPTION_BOARD_PIN_GPS_RX			0	// Connect the board D1 pin on the GPS TX
+//	#define OPTION_BOARD_PIN_GPS_TX			1	// Connect the board D2 pin on the GPS RX
+//	#define OPTION_BOARD_PIN_FACTORY_RESET	2
+#endif
 
-#endif // #ifndef OPTIONS_H
+
+#endif // #if !defined(BIADUD_OPTIONS_H)
