@@ -164,7 +164,10 @@ bool BeaconManager::shouldSend() {
 // ================================================================================================
 
 bool BeaconManager::isReady() const {
-    return _initialized && _home_set && _frame_count > 0;
+    // Ability to transmit right now, regardless of frames already sent: keying this on
+    // _frame_count deadlocked the beacon, as the counter is only incremented by a send
+    // that the caller in turn gated on isReady().
+    return _initialized && _home_set && checkGpsDataValidity(_last_gps_data);
 }
 
 bool BeaconManager::hasHomeSet() const {

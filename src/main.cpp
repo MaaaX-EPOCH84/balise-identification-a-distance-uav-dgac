@@ -193,8 +193,9 @@ void loop() {
         // Update GPS manager
         gpsManager.update();
         
-        // Check if GPS is now ready
-        if (!gpsManager.isReady() && gpsManager.hasValidFix()) {
+        // Check if GPS is now ready (isReady() is the full DGAC criteria: fix,
+        // 4+ satellites, HDOP below 5.0 and a valid altitude)
+        if (!_gps_ready && gpsManager.isReady()) {
             _gps_ready = true;
             DEBUG_INFO("GPS has valid fix!");
             
@@ -216,7 +217,10 @@ void loop() {
     // -------------------------------------------------------------------------------------------
     // Send beacon frames
     // -------------------------------------------------------------------------------------------
-    if (_gps_ready && beaconManager.isReady()) {
+    // sendBeaconFrame() applies the DGAC conditions itself through shouldSend():
+    // initialization, home position, GPS validity and the 3s / 30m period. No extra
+    // guard here, so the very first frame can go out.
+    if (_gps_ready) {
         beaconManager.sendBeaconFrame();
     }
     
