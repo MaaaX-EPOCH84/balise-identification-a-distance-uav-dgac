@@ -28,7 +28,7 @@
 
 
 #include <Arduino.h>
-#ifdef TARGET_ESP32
+#if defined(TARGET_ESP32)
 	#pragma message "Using HardwareSerial(1) for GPS."
 #else
 	SoftwareSerial serialGPS;							// ESP8266 uses SoftwareSerial only
@@ -63,16 +63,21 @@ double		gps_previous_speed		= 0;		// Previous GPS speed (m/s)
 #endif
 //TinyGPSPlus gps;
 
-void	gpsEcho(long longDuration);
-void	gpsSetSerialSpeed(uint32_t uint32Baud);
+void gpsEcho(long longDuration);
+void gpsSetSerialSpeed(uint32_t uint32Baud);
+#if defined (OPTION_GPS_QUECTEL) || defined (OPTION_GPS_UBLOX)
+	void gpsSetpeed(uint32_t baud);
+	void gpsSetRate(uint32_t rate);
+	void gpsLimitNmeaSentences();
+	void gpsAddChecksum(char *buff);
+#endif
+
+#if defined (OPTION_GPS_UBLOX)
+	void gpsCrc(byte* msg, uint32_t size);
+	void gpsSendPacket(byte* packet, byte len);
+#endif
 
 // float distanceSimple(float lat1, float lon1, float lat2, float lon2);
-// void setGpsRate(uint32_t rate);
-// void limitNmeaSentences();
-// void fs_initGPS(uint32_t baud, uint32_t rate) ;
-// void setGpsSpeed(uint32_t baud);
-// void addChecksum(char *buff);
-// void sendPacket(byte * packet, byte len);
-// void crc_ublox( byte *msg, uint32_t size);
+void gpsInit(uint32_t baud, uint32_t rate);
 
 #endif // #if !defined(BIADUD_GPS_H)

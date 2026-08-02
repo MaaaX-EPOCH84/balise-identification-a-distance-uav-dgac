@@ -1,259 +1,251 @@
-//*************************************************************************************************
-// BALISE D'IDENTIFICATION A DISTANCE POUR UAV (DGAC)
-//*************************************************************************************************
-// Author:     Maxime MARCONATO (maxime@maaax.com, aka MaaaX^^, aka EPOCH84)
-// Repository: https://github.com/EPOCH84/Balise_Identification_A_Distance_UAV_DGAC
-// Based on:
-// - https://github.com/fanfanlatulipe26/BaliseDGAC_GPS_Logger
-// - https://github.com/dev-fred/GPS_Tracker_ESP8266
-// - https://github.com/khancyr/droneID_FR
-// - https://github.com/f5soh/balise_esp32/blob/master/droneID_FR.h (version 1 https://discuss.ardupilot.org/t/open-source-french-drone-identification/56904/98 )
-// - https://github.com/f5soh/balise_esp32
-// - https://www.tranquille-informatique.fr/modelisme/divers/balise-dgac-signalement-electronique-a-distance-drone-aeromodelisme.html
-//*************************************************************************************************
-// LICENCE GPL V3:
+// ************************************************************************************************
+// * BALISE D'IDENTIFICATION A DISTANCE POUR UAV (DGAC)                                           *
+// ************************************************************************************************
+// * Author:     Maxime MARCONATO (maxime@maaax.com, aka MaaaX^^, aka EPOCH84)
+// * Repository: https://github.com/EPOCH84/Balise_Identification_A_Distance_UAV_DGAC
+// * Based on:
+// * - https://github.com/fanfanlatulipe26/BaliseDGAC_GPS_Logger
+// * - https://github.com/dev-fred/GPS_Tracker_ESP8266
+// * - https://github.com/khancyr/droneID_FR
+// * - https://github.com/f5soh/balise_esp32
+// * - https://www.tranquille-informatique.fr/modelisme/divers/balise-dgac-signalement-electronique-a-distance-drone-aeromodelisme.html
+// ************************************************************************************************
+// GPL V3:
 // This program is free software: you can redistribute it and/or modify it under the terms of the
 // GNU General Public License as published by the Free Software Foundation, either version 3 of the
 // License, or (at your option) any later version.
 // This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
 // without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-// See the GNU General Public License for more details.
+// See the GNU General License for more details.
 //
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
-//=================================================================================================
+// ================================================================================================
 
-#include "main.h"
+// ================================================================================================
+// INCLUDES
+// ================================================================================================
 
+#include "core/biadud_core.h"
+#include "core/biadud_platform.h"
+#include "beacon/beacon_manager.h"
+#include "gps/gps_manager.h"
+#include "storage/eeprom_manager.h"
+#include "hardware/led_manager.h"
+#include "network/wifi_manager.h"
+#include "utils/debug_utils.h"
 
-//*************************************************************************************************
-// setup()
-//*************************************************************************************************
-// First function called once at startup, before loop().
-//=================================================================================================
+// ================================================================================================
+// DEFINES
+// ================================================================================================
+
+// GPS Configuration
+#define GPS_BAUD_RATE     9600
+#define GPS_REFRESH_RATE  1    // 1 Hz
+
+// WiFi Configuration
+#define WIFI_AP_CHANNEL   1
+
+// Timing Configuration
+#define LED_BLINK_INTERVAL_MS   1000
+#define GPS_UPDATE_INTERVAL_MS   100
+
+// ================================================================================================
+// GLOBAL STATE
+// ================================================================================================
+
+// Timing state
+static uint32_t _last_led_blink_ms = 0;
+static uint32_t _last_gps_update_ms = 0;
+
+// System state
+static bool _system_initialized = false;
+static bool _wifi_ready = false;
+static bool _gps_ready = false;
+
+// ================================================================================================
+// SETUP
+// ================================================================================================
+
 void setup() {
-	#if defined(OPTION_BOARD_PIN_LED)
-		pinMode(OPTION_BOARD_PIN_LED, OUTPUT);
-		digitalWrite(OPTION_BOARD_PIN_LED, HIGH); // turn the LED off
-	#endif
-	
-	Serial.begin(115200);
-	Serial.setDebugOutput(true);
-	while (!Serial) {
-		delay(250);
-	};					// Waiting until serial is ready
-	delay(3000);		// Wait 3 additional seconds to let the time at the user to connect a serial debug console
-	#if defined(OPTION_BOARD_PIN_LED)
-		digitalWrite(OPTION_BOARD_PIN_LED, LOW); // turn the LED on
-	#endif
-	
-	Serial.print(F("\n===== BALISE_IDENTIFICATION_A_DISTANCE_UAV_DGAC v"));
-	Serial.print(beacon_version);
-	Serial.print(F(" (" __DATE__ " " __TIME__ ") =====\n\n"));
+    // Initialize debug output
+    DebugUtils::begin(DEBUG_SERIAL_BAUD);
+    delay(1000);
+    
+    DEBUG_INFO("==============================================");
+    DEBUG_INFO("BIADUD - Balise Identification UAV DGAC");
+    DEBUG_INFO("Version: " + String(BIADUD_VERSION_STRING));
+    DEBUG_INFO("==============================================");
+    
+    // -------------------------------------------------------------------------------------------
+    // Initialize EEPROM and load preferences
+    // -------------------------------------------------------------------------------------------
+    DEBUG_INFO("Initializing EEPROM...");
+    eepromManager.begin(EEPROM_SIZE);
+    
+    // Check for factory reset pin
+    bool factory_reset = eepromManager.checkFactoryReset();
+    if (factory_reset) {
+        DEBUG_INFO("Factory reset requested via pin!");
+    }
+    
+    // Load preferences
+    bool preferences_loaded = eepromManager.load();
+    if (!preferences_loaded || !eepromManager.isValid() || factory_reset) {
+        DEBUG_WARN("Preferences not loaded or invalid, using defaults");
+        eepromManager.resetToFactory();
+        
+        // Generate default UAV ID from MAC address
+        String default_uav_id = EepromManager::generateUavIdFromMac();
+        String default_ssid = EepromManager::generateSsidFromMac();
+        
+        Preferences& prefs = eepromManager.get();
+        strncpy(prefs.uav_id, default_uav_id.c_str(), UAV_ID_LENGTH);
+        strncpy(prefs.ssid, default_ssid.c_str(), sizeof(prefs.ssid) - 1);
+        
+        eepromManager.save();
+    }
+    
+    // Display preferences
+    DEBUG_INFO("Current Preferences:");
+    eepromManager.print();
+    
+    // -------------------------------------------------------------------------------------------
+    // Initialize LED
+    // -------------------------------------------------------------------------------------------
+    DEBUG_INFO("Initializing LED...");
+    ledManager.begin();
+    ledManager.setState(LedState::LED_BLINK_SLOW);
+    
+    // -------------------------------------------------------------------------------------------
+    // Initialize GPS
+    // -------------------------------------------------------------------------------------------
+    DEBUG_INFO("Initializing GPS...");
+    
+    // Initialize serial GPS port
+    #if HAS_HARDWARE_SERIAL
+        serialGPS.begin(GPS_BAUD_RATE, SERIAL_8N1, PIN_GPS_RX, PIN_GPS_TX);
+    #else
+        serialGPS.begin(GPS_BAUD_RATE);
+    #endif
+    
+    // Initialize GPS manager
+    gpsManager.initialize(GPS_BAUD_RATE, GPS_REFRESH_RATE);
+    
+    // -------------------------------------------------------------------------------------------
+    // Initialize WiFi (beacon transmission mode only)
+    // -------------------------------------------------------------------------------------------
+    // NOTE: DGAC beacon frames are sent via esp_wifi_80211_tx() on the AP interface
+    // (see biadud_platform.cpp:sendBeaconFrame), so WiFi must stay active even though the
+    // config web server / captive portal are not started in this minimal build.
+    // TODO Phase 2: config UI (web server + captive portal DNS) — code exists in
+    // network/web_server.h and network/dns_server.h, just not wired up yet.
+    DEBUG_INFO("Initializing WiFi (beacon mode)...");
+    wifiManager.begin();
 
-	// Read the Wifi MAC address of the board
-	Serial.print(F("Wifi MAC address : "));
-	String WifiMacAddress = WiFi.macAddress();
-	Serial.print(WifiMacAddress);
-	Serial.print(F("\n\n"));
-	WifiMacAddress.replace(":", "");					// 12 chars after remove of ":" for later use
+    // Get preferences
+    Preferences& prefs = eepromManager.get();
 
-	// Define the default ssid_access_port
-	Serial.print(F("Default preferences : \n"));
-	Serial.print(F(" - ssid_access_point : "));
-	String ssid_ap_default = String(ssid_prefix)+"_"+WifiMacAddress;
-	ssid_ap_default.toCharArray(preferences_factory.ssid_access_point, 32);
-	Serial.println(preferences_factory.ssid_access_point);
-	// Define the last mid part of the beacon_id serial number
-	Serial.print(F(" - uav_id : "));
-	strcpy(&uav_id[18], WifiMacAddress.c_str());		// placed at the las part of the beacon_id serial number
-	strcpy(preferences_factory.uav_id, uav_id);
-	Serial.print(preferences_factory.uav_id);
-	Serial.print(F("\n\n"));
+    String ssid = String(prefs.ssid[0] ? prefs.ssid : WIFI_SSID_PREFIX);
 
-	// Init/Read preferences in EEPROM
-	EEPROM.begin(512);
-	preferencesCheckResetToFactory();
-	preferencesRead();
-	strcpy(uav_id, preferences_custom.uav_id);
-	strcpy(ssid, preferences_custom.ssid_access_point);
-	ip_localaddress.fromString(preferences_custom.ip_localaddress);
-	ip_gatewayaddress.fromString(preferences_custom.ip_gatewayaddress);
-	ip_subnetmask.fromString(preferences_custom.ip_subnetmask);
-	preferencesList();
-	Serial.print(F("\n"));
+    _wifi_ready = wifiManager.startBeaconMode(ssid, WIFI_AP_CHANNEL, true);
+    if (_wifi_ready) {
+        DEBUG_INFO("WiFi beacon mode started: " + ssid);
+    } else {
+        DEBUG_ERROR("Failed to start WiFi beacon mode!");
+    }
 
-	// Initialize the GPS at 9600 Bauds. This speed will be changed later according preferences.
-	Serial.print(F("GPS type : "));
-	#if defined(OPTION_GPS_QUECTEL)
-		Serial.println(F("Quectel"));
-	#elif defined(OPTION_GPS_UBLOX)
-		Serial.println(F("Ublox"));
-	#else
-		Serial.println(F("undefined"));
-	#endif
-	Serial.printf_P(PSTR(" - Board pin %i => GPS RX\n - Board pin %i <= GPS TX\n"), OPTION_BOARD_PIN_GPS_TX, OPTION_BOARD_PIN_GPS_RX);
-
-	Serial.print(F("Init GPS (9600 bauds)...\n"));
-	#if defined(TARGET_ESP32)
-		Serial.print(F("GPS uses HardwareSerial(1)...\n"));
-	 	serialGPS.begin(9600, SERIAL_8N1, OPTION_BOARD_PIN_GPS_RX, OPTION_BOARD_PIN_GPS_TX);
-//	 	if (!xxx) {	// How to check if init is correctly done ?
-//			Serial.print(F("GPG Init : failed!\n"));
-//			Serial.print(F("STOPPED => PLEASE REBOOT !!!"));
-//			#if defined(OPTION_BOARD_PIN_LED)
-//				digitalWrite(OPTION_BOARD_PIN_LED, HIGH); // turn the LED off
-//			#endif
-//			while (true) {		// Don't continue with invalid configuration
-//				delay(1000);
-//			}
-//		}
-	#else
-		Serial.print(F("GPS uses SoftwareSerial...\n"));
-	 	serialGPS.begin(9600, SWSERIAL_8N1, OPTION_BOARD_PIN_GPS_RX, OPTION_BOARD_PIN_GPS_TX);
-	 	if (!serialGPS) {	// If the object did not initialize, then its configuration is invalid
-			Serial.print(F("GPG Init : failed !\n"));
-			Serial.print(F("STOPPED => PLEASE REBOOT !!!"));
-			#if defined(OPTION_BOARD_PIN_LED)
-				digitalWrite(OPTION_BOARD_PIN_LED, HIGH); // turn the LED off
-			#endif
-			while (true) {		// Don't continue with invalid configuration
-				delay(1000);
-			}
-		}
-	#endif
-	Serial.print(F("...Init GPS : done\n\n"));
-
-	delay(1500);														// Quectel GPS needs ~1.1s to be ready (it doesn't accept any command before). Ubloxd GPS needs ~600ms only.
-	gpsInit(preferences_custom.gps_baud, preferences_custom.gps_rate);	// init du GPS (vitesse, refresh) et serialGPS
-	drone_idfr.set_drone_id(preferences_custom.uav_id);
-
-
-
-	// Start WiFi
-	Serial.print(F("Init Wifi...\n"));
-	WiFi.mode(WIFI_AP);
-	delay(250);
-	Serial.print(F("... Init Wifi : done\n"));
-	Serial.print(F("Configure Wifi Access Point...\n"));
-	if (!WiFi.softAPConfig(ip_localaddress, ip_gatewayaddress, ip_subnetmask)) {
-		Serial.print(F("...Configure Wifi Access Point : failed !\n"));
-		Serial.print(F("STOPPED => PLEASE REBOOT !!!"));
-		#if defined(OPTION_BOARD_PIN_LED)
-			digitalWrite(OPTION_BOARD_PIN_LED, HIGH); // turn the LED off
-		#endif
-		while (true) {		// Don't continue with invalid configuration
-			delay(1000);
-		}
-	}
-	delay(250);
-	Serial.print(F("...Configure Wifi Access Point : done\n"));
-	// ssid, pwd, channel, hidden, max_cnx
-	Serial.print(F("Init Wifi Access Point...\n"));
-	if (!WiFi.softAP(ssid, preferences_custom.password, 6, false, 4)) {	// 4 users maximum
-		Serial.print(F("...Init Wifi Access Point : failed !\n"));
-		Serial.print(F("STOPPED => PLEASE REBOOT !!!"));
-		#if defined(OPTION_BOARD_PIN_LED)
-			digitalWrite(OPTION_BOARD_PIN_LED, HIGH); // turn the LED off
-		#endif
-		while (true) {		// Don't continue with invalid configuration
-			delay(1000);
-		}
-	}
-	delay(250);
-	Serial.print(F("...Init Wifi Access Point : done\n"));
-	Serial.print(F("IP address for Wifi Access Point network "));
-	Serial.print(ssid);
-	Serial.print(F(" : "));
-	Serial.print(WiFi.softAPIP());
-	Serial.print(F(" / "));
-	Serial.println(WiFi.softAPSubnetMask());
-	Serial.print(F("\n"));
-
-	serverStart();									// Start WEB server, DNS server, file system...
-
-	#if defined(repondeurGSM)
-		GSMInit();
-	#endif
-
-	#if defined(fs_iBus)
-		// init et stop evenntuel: on sera pret pour relancer de façon simple la télémétrie
-		iBusInit(); 
-		delay(200);
-		if (!preferences.iBusActif) iBusStop();
-	#endif
-
-	#if defined(fs_STAT)
-		razStatistics();
-	#endif
-	Serial.println(F("Attente du fix & Co"));
-
-
-
-
-
-
-
-	log_d("Setup done");
-	Serial.printf("Setup done\n\n\n");
-	Serial.printf("=== Setup done ===\n\n\n");
-	#if defined(OPTION_BOARD_PIN_LED)
-		digitalWrite(OPTION_BOARD_PIN_LED, HIGH); // turn the LED off
-	#endif
+    // -------------------------------------------------------------------------------------------
+    // Initialize Beacon Manager
+    // -------------------------------------------------------------------------------------------
+    DEBUG_INFO("Initializing beacon manager...");
+    beaconManager.initialize(prefs.uav_id);
+    
+    _system_initialized = true;
+    DEBUG_INFO("==============================================");
+    DEBUG_INFO("System initialized successfully!");
+    DEBUG_INFO("==============================================");
 }
 
-//*************************************************************************************************
-// loop()
-//*************************************************************************************************
-// Called in infinitly, after setup().
-//=================================================================================================
+// ================================================================================================
+// LOOP
+// ================================================================================================
+
 void loop() {
-	Serial.printf("=== Loop begin ===\n");
-
-	#if defined(OPTION_BOARD_PIN_LED)
-		// "O" in morse code
-		digitalWrite(GPIO_NUM_8, LOW); // turn the LED on
-		Serial.printf("LED : on\n");
-		delay(1000);
-		digitalWrite(GPIO_NUM_8, HIGH); // turn the LED off
-		Serial.printf("LED : off\n");
-		delay(500);
-		digitalWrite(GPIO_NUM_8, LOW); // turn the LED on
-		Serial.printf("LED : on\n");
-		delay(1000);
-		digitalWrite(GPIO_NUM_8, HIGH); // turn the LED off
-		Serial.printf("LED : off\n");
-		delay(500);
-		digitalWrite(GPIO_NUM_8, LOW); // turn the LED on
-		Serial.printf("LED : on\n");
-		delay(1000);
-		digitalWrite(GPIO_NUM_8, HIGH); // turn the LED off
-		Serial.printf("LED : off\n");
-		delay(1500);
-
-		// "K" in morse code
-		digitalWrite(GPIO_NUM_8, LOW); // turn the LED on
-		Serial.printf("LED : on\n");
-		delay(1000);
-		digitalWrite(GPIO_NUM_8, HIGH); // turn the LED off
-		Serial.printf("LED : off\n");
-		delay(500);
-		digitalWrite(GPIO_NUM_8, LOW); // turn the LED on
-		Serial.printf("LED : on\n");
-		delay(300);
-		digitalWrite(GPIO_NUM_8, HIGH); // turn the LED off
-		Serial.printf("LED : off\n");
-		delay(500);
-		digitalWrite(GPIO_NUM_8, LOW); // turn the LED on
-		Serial.printf("LED : on\n");
-		delay(1000);
-		digitalWrite(GPIO_NUM_8, HIGH); // turn the LED off
-		Serial.printf("LED : off\n");
-		delay(3000);
-	#endif
-
-	// Serial.println(F("Preferences readen from EEPROM : "));
-	// listPreferences();
-
-	Serial.printf("=== Loop end ===\n");
+    // Blink LED to indicate system is running
+    if (hasElapsed(_last_led_blink_ms, LED_BLINK_INTERVAL_MS)) {
+        _last_led_blink_ms = millis();
+        ledManager.update();
+    }
+    
+    // -------------------------------------------------------------------------------------------
+    // Update GPS data
+    // -------------------------------------------------------------------------------------------
+    if (hasElapsed(_last_gps_update_ms, GPS_UPDATE_INTERVAL_MS)) {
+        _last_gps_update_ms = millis();
+        
+        // Process GPS data from serial port
+        while (serialGPS.available()) {
+            char c = serialGPS.read();
+            gpsManager.processChar(c);
+        }
+        
+        // Update GPS manager
+        gpsManager.update();
+        
+        // Check if GPS is now ready
+        if (!gpsManager.isReady() && gpsManager.hasValidFix()) {
+            _gps_ready = true;
+            DEBUG_INFO("GPS has valid fix!");
+            
+            // Set home position when GPS first gets a fix
+            GpsData gps_data = gpsManager.getData();
+            if (gps_data.has_fix) {
+                beaconManager.setHomePosition(gps_data.position.latitude, 
+                                               gps_data.position.longitude, 
+                                               gps_data.altitude);
+            }
+        }
+        
+        // Update beacon manager with latest GPS data
+        if (_gps_ready) {
+            beaconManager.updateGpsData(gpsManager.getData());
+        }
+    }
+    
+    // -------------------------------------------------------------------------------------------
+    // Send beacon frames
+    // -------------------------------------------------------------------------------------------
+    if (_gps_ready && beaconManager.isReady()) {
+        beaconManager.sendBeaconFrame();
+    }
+    
+    // -------------------------------------------------------------------------------------------
+    // Periodic status update (every 5 seconds)
+    // -------------------------------------------------------------------------------------------
+    static uint32_t _last_status_update_ms = 0;
+    if (hasElapsed(_last_status_update_ms, 5000)) {
+        _last_status_update_ms = millis();
+        
+        // Print status to serial
+        DEBUG_INFO("--- Status Update ---");
+        DEBUG_INFO("Uptime: " + DebugUtils::getUptime());
+        DEBUG_INFO("Free Heap: " + String(DebugUtils::getFreeHeap()) + " bytes");
+        DEBUG_INFO(beaconManager.getStateString());
+        
+        if (_wifi_ready) {
+            DEBUG_INFO(wifiManager.getNetworkInfo());
+        }
+        
+        // Update LED state based on system state
+        if (beaconManager.isReady()) {
+            ledManager.setState(LedState::LED_ON);
+        } else if (_gps_ready) {
+            ledManager.setState(LedState::LED_BLINK_FAST);
+        } else if (_wifi_ready) {
+            ledManager.setState(LedState::LED_BLINK_SLOW);
+        } else {
+            ledManager.setState(LedState::LED_PULSE);
+        }
+    }
 }

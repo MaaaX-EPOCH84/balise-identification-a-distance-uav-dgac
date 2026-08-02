@@ -31,7 +31,7 @@
 #include <LittleFS.h>
 #include <WebServer.h>
 #include <DNSServer.h>
-#ifdef TARGET_ESP8266
+#if defined(TARGET_ESP8266)
 	#include <ESP8266WebServer.h>
 #endif
 #include "biadud_options.h"

@@ -23,21 +23,21 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 // ================================================================================================
 
-#if !defined(BIADUD_BEACON_H)
-#define BIADUD_BEACON_H
+#include "biadud_beacon.h"
 
+Beacon::Beacon() {
+    this->setBeaconId("Balise d'identification à distance");
+}
 
-#include <Arduino.h>
+Beacon::~Beacon() {
+    
+}
 
+// Set the Beacon ID
+void Beacon::setBeaconId(const char* id_value) {
+    // Don't use std::copy as it isn't support on all targets like espressif32 SDK!
+    unsigned long data_size = sizeof(id_value);
+    memset(_beaconId, 0, DATA_TYPE_LENGTH_VALUE[ID_FR]);
+    memcpy(_beaconId, id_value, data_size <= DATA_TYPE_LENGTH_VALUE[ID_FR] ? data_size : DATA_TYPE_LENGTH_VALUE[ID_FR]);
+}
 
-const char  beacon_version[]    = "0.01.000";
-
-// UAV ID
-char		uav_id[31]	    	= "000MB1000000000000000000000001";
-				    			// CCC								Constructor code (must be set to "000" for DIY maker)
-					    		//    MMM							Beacon model (you can modify it) (e.g.: MB1 here is for "MaaaX's Beacon 1")
-						    	//       111111111111				First mid part of the serial number (you can modify it)
-							    //                   222222222222	Last mid part of the serial number (this part will be replaced by MAC address of the board to be unique)
-
-
-#endif // #if !defined(BIADUD_BEACON_H)

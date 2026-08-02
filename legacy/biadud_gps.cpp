@@ -74,8 +74,8 @@ void gpsSetSerialSpeed(uint32_t uint32Baud) {
 // 
 //=================================================================================================
 // initialise la vitesse de communication du GPS, et la ligne serialGPS
-void setGpsSpeed(uint32_t baud) {
-	#ifdef OPTION_GPS_QUECTEL
+void gpsSetSpeed(uint32_t baud) {
+	#if defined (OPTION_GPS_QUECTEL)
 		char buff [25];
 		// surtout utile en developement/test, lors de warm start.
 		//  car après un power down/up le GPS est a 9600bds, maj 1hz
@@ -139,8 +139,6 @@ void setGpsSpeed(uint32_t baud) {
 #ifdef OPTION_GPS_QUECTEL
 
 
-
-
 	//*************************************************************************************************
 	// 
 	//*************************************************************************************************
@@ -179,7 +177,7 @@ void setGpsSpeed(uint32_t baud) {
 	//=================================================================================================
 	// rajout du checksum sur commande pour GPS.
 	// Le buffer d'entrée doit avoir AU MOINS 3 caractères de plus que la commande
-	void gpsAddChecksum(char *buff) {
+	void gpsAddChecksum(char* buff) {
 		char cs = 0;
 		int i = 1;
 		while (buff[i]) {
@@ -221,38 +219,6 @@ void setGpsSpeed(uint32_t baud) {
 	//*************************************************************************************************
 	// 
 	//=================================================================================================
-	void gpsLimitNmeaSentences() {
-		// limiter le trafic aux trames $GPGA et $GPRMC
-		serialGPS.println(F("$PUBX,40,GSV,0,0,0,0,0,0*59"));
-		serialGPS.println(F("$PUBX,40,GSA,0,0,0,0,0,0*4E"));
-		serialGPS.println(F("$PUBX,40,GLL,0,0,0,0,0,0*5C"));
-		serialGPS.println(F("$PUBX,40,VTG,0,0,0,0,0,0*5E"));
-	}
-
-
-	//*************************************************************************************************
-	// 
-	//*************************************************************************************************
-	// 
-	//=================================================================================================
-	// rajout du checksum sur commande pour GPS.
-	// Le buffer d'entrée doit avoir AU MOINS 3 caractères de plus que la commande
-	void gpsAddChecksum(char *buff) {
-		char cs = 0;
-		int i = 1;
-		while (buff[i]) {
-			cs ^= buff[i];
-			i++;
-		}
-		sprintf_P(buff, PSTR("%s*%02X"), buff, cs);
-	}
-
-
-	//*************************************************************************************************
-	// 
-	//*************************************************************************************************
-	// 
-	//=================================================================================================
 	// Envoie au GPS une commande pour changer de frequence de refresh
 	//  ubx procole seulement ...
 	void gpsSetRate(uint32_t rate) {
@@ -260,13 +226,13 @@ void setGpsSpeed(uint32_t baud) {
 								0x06, 0x00, // length
 								0xF4, 0x01, // measRate. Ici 0xF4 0x01 = 500ms 2hz
 								0x01, 0x00, // navRate
-//								0x01, 0x00, // timeRef . Ici 1 =GPS time
+	//								0x01, 0x00, // timeRef . Ici 1 =GPS time
 								0x00, 0x00, // timeRef . Ici 0 =UTC time
 								0x0B, 0x77  //
 							};
-//		Serial.printf_P(PSTR("setGpsRate(%u) "), rate);
+	//		Serial.printf_P(PSTR("setGpsRate(%u) "), rate);
 		uint32_t period = 1000.0 / rate;
-//		Serial.printf_P(PSTR("  period:%u (%X):\n"), period);
+	//		Serial.printf_P(PSTR("  period:%u (%X):\n"), period);
 		packet_rate[6] = period;
 		packet_rate[7] = period >> 8;
 		gpsCrc(packet_rate, sizeof(packet_rate));
@@ -283,9 +249,40 @@ void setGpsSpeed(uint32_t baud) {
 	//*************************************************************************************************
 	// 
 	//=================================================================================================
+	void gpsLimitNmeaSentences() {
+		// limiter le trafic aux trames $GPGA et $GPRMC
+		serialGPS.println(F("$PUBX,40,GSV,0,0,0,0,0,0*59"));
+		serialGPS.println(F("$PUBX,40,GSA,0,0,0,0,0,0*4E"));
+		serialGPS.println(F("$PUBX,40,GLL,0,0,0,0,0,0*5C"));
+		serialGPS.println(F("$PUBX,40,VTG,0,0,0,0,0,0*5E"));
+	}	
+
+
+	//*************************************************************************************************
+	// 
+	//*************************************************************************************************
+	// 
+	//=================================================================================================
+	// rajout du checksum sur commande pour GPS.
+	// Le buffer d'entrée doit avoir AU MOINS 3 caractères de plus que la commande
+	void gpsAddChecksum(char* buff) {
+		char cs = 0;
+		int i = 1;
+		while (buff[i]) {
+			cs ^= buff[i];
+			i++;
+		}	
+		sprintf_P(buff, PSTR("%s*%02X"), buff, cs);
+	}	
+
+
+	//*************************************************************************************************
+	// 
+	//*************************************************************************************************
+	// 
+	//=================================================================================================
 	// calcul checksum pour protocole UBX. Le message est mis à jour.
-	void gpsCrc( byte *msg, uint32_t size)
-	{
+	void gpsCrc( byte* msg, uint32_t size) {
 		uint32_t s = size;
 		uint8_t CK_A = 0, CK_B = 0;
 		for (uint8_t i = 2; i < (s - 2) ; i++) {
@@ -303,7 +300,7 @@ void setGpsSpeed(uint32_t baud) {
 	// 
 	//=================================================================================================
 	// Send the packet specified to the receiver.
-	void gpsSendPacket(byte * packet, byte len) {
+	void gpsSendPacket(byte* packet, byte len) {
 		for (byte i = 0; i < len; i++) {
 			serialGPS.write(packet[i]);
 		}
