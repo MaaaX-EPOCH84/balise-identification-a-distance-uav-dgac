@@ -59,12 +59,38 @@ String getWiFiMacAddressNoColons() {
 // BEACON TRANSMISSION FUNCTIONS
 // ================================================================================================
 
+// Last error returned by the radio transmit call, kept so the periodic status can
+// tell a refused frame from a frame that was never built.
+static int _last_beacon_tx_error = 0;
+
+int getLastBeaconTxError() {
+    return _last_beacon_tx_error;
+}
+
+bool getApMacAddress(uint8_t* mac_out) {
+    if (mac_out == nullptr) {
+        return false;
+    }
+
+    #if defined(PLATFORM_ESP32C3) || defined(PLATFORM_ESP32S3) || defined(PLATFORM_ESP32)
+        return esp_wifi_get_mac(WIFI_IF_AP, mac_out) == ESP_OK;
+    #elif defined(PLATFORM_ESP8266)
+        return wifi_get_macaddr(SOFTAP_IF, mac_out);
+    #else
+        return false;
+    #endif
+}
+
 bool sendBeaconFrame(const uint8_t* buffer, uint16_t len) {
     #if defined(PLATFORM_ESP32C3) || defined(PLATFORM_ESP32S3) || defined(PLATFORM_ESP32)
         // ESP32 platform - use esp_wifi_80211_tx
         // WIFI_IF_AP = softAP interface
-        return esp_wifi_80211_tx(WIFI_IF_AP, (const void*)buffer, len, false) == ESP_OK;
-    
+        // en_sys_seq = true: the sequence number field is filled by the SDK, as the
+        // beacon header leaves it at zero.
+        esp_err_t err = esp_wifi_80211_tx(WIFI_IF_AP, (const void*)buffer, len, true);
+        _last_beacon_tx_error = static_cast<int>(err);
+        return err == ESP_OK;
+
     #elif defined(PLATFORM_ESP8266)
         // ESP8266 platform - use wifi_send_pkt_freedom
         return wifi_send_pkt_freedom(const_cast<uint8_t*>(buffer), len, false) == 0;

@@ -58,6 +58,9 @@
 static uint32_t _last_led_blink_ms = 0;
 static uint32_t _last_gps_update_ms = 0;
 
+// GPS diagnostics — raw bytes pulled from the GPS UART by the main loop
+static uint32_t _gps_bytes_read = 0;
+
 // System state
 static bool _system_initialized = false;
 static bool _wifi_ready = false;
@@ -159,7 +162,7 @@ void setup() {
     // Initialize Beacon Manager
     // -------------------------------------------------------------------------------------------
     DEBUG_INFO("Initializing beacon manager...");
-    beaconManager.initialize(prefs.uav_id);
+    beaconManager.initialize(prefs.uav_id, ssid.c_str(), WIFI_AP_CHANNEL);
     
     _system_initialized = true;
     DEBUG_INFO("==============================================");
@@ -187,6 +190,7 @@ void loop() {
         // Process GPS data from serial port
         while (serialGPS.available()) {
             char c = serialGPS.read();
+            _gps_bytes_read++;
             gpsManager.processChar(c);
         }
         
@@ -236,7 +240,22 @@ void loop() {
         DEBUG_INFO("Uptime: " + DebugUtils::getUptime());
         DEBUG_INFO("Free Heap: " + String(DebugUtils::getFreeHeap()) + " bytes");
         DEBUG_INFO(beaconManager.getStateString());
-        
+        DEBUG_INFO(beaconManager.getTxStatsString());
+
+        // GPS link diagnostics: separates a dead RX line (bytes stuck at 0) from
+        // sentences that arrive but get rejected, and from a receiver still searching.
+        const GpsData& gps_diag = gpsManager.getData();
+        DEBUG_INFO("GPS link: bytes=" + String(_gps_bytes_read) +
+                   " sentences=" + String(gpsManager.getSentenceCount()) +
+                   " badcrc=" + String(gpsManager.getFailedChecksumCount()) +
+                   " last=" + gpsManager.getLastSentenceType());
+        DEBUG_INFO("GPS data: fix=" + String(gps_diag.has_fix ? "YES" : "NO") +
+                   " sats=" + String(gps_diag.satellites) +
+                   " hdop=" + String(gps_diag.hdop, 2) +
+                   " alt=" + String(gps_diag.altitude, 1) +
+                   " lat=" + String(gps_diag.position.latitude, 6) +
+                   " lon=" + String(gps_diag.position.longitude, 6));
+
         if (_wifi_ready) {
             DEBUG_INFO(wifiManager.getNetworkInfo());
         }

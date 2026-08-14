@@ -51,10 +51,12 @@ public:
 
     /**
      * Initialize the beacon manager
-     * 
+     *
      * @param drone_id The drone ID string (30 characters max)
+     * @param ssid     SSID advertised by the beacon frame, 32 characters max
+     * @param channel  Channel announced in the DS parameter set
      */
-    void initialize(const char* drone_id);
+    void initialize(const char* drone_id, const char* ssid = nullptr, uint8_t channel = 1);
 
     // -------------------------------------------------------------------------------------------
     // SETTERS
@@ -186,10 +188,19 @@ public:
 
     /**
      * Get a string representation of the current beacon state
-     * 
+     *
      * @return State string
      */
     String getStateString() const;
+
+    /**
+     * Get transmission counters, for diagnosis only
+     * Separates a frame refused by shouldSend() from one never built, and from
+     * one the radio declined to send.
+     *
+     * @return Counters as a printable string
+     */
+    String getTxStatsString() const;
 
 private:
     // -------------------------------------------------------------------------------------------
@@ -199,6 +210,17 @@ private:
     DroneIdFr _drone_id_fr;
     GpsData _last_gps_data;
     
+    // Beacon frame identity
+    char _ssid[33] = {0};
+    uint8_t _channel = 1;
+
+    // Transmission diagnostics
+    uint32_t _attempt_count = 0;
+    uint32_t _refused_count = 0;
+    uint32_t _empty_frame_count = 0;
+    uint32_t _tx_error_count = 0;
+    uint16_t _last_frame_size = 0;
+
     // Beacon statistics
     uint32_t _frame_count = 0;
     uint32_t _last_send_ms = 0;
@@ -220,6 +242,16 @@ private:
      * @return true if data meets all requirements
      */
     bool checkGpsDataValidity(const GpsData& gps_data) const;
+
+    /**
+     * Write the 802.11 beacon header — management frame, addresses, fixed parameters,
+     * DS parameter set and SSID element — ahead of the vendor specific element.
+     * esp_wifi_80211_tx() expects a complete frame, not a bare information element.
+     *
+     * @param frame Output buffer
+     * @return Number of bytes written, where the vendor element starts
+     */
+    uint16_t buildBeaconHeader(uint8_t* frame) const;
 
     /**
      * Update the DroneIdFr class with current GPS data

@@ -175,8 +175,14 @@ void NmeaParser::processSentence() {
     
     _sentence_count++;
     
-    // Split into fields
-    _field_count = splitFields(_buffer + 1, _field_ptrs, MAX_NMEA_FIELDS); // Skip the '$'
+    // Split into fields, starting after the sentence type token: "$GNGGA," is skipped
+    // whole, so field 0 is the first data field, as parseGGA/parseRMC/parseGSA document.
+    // Skipping only the '$' left the type in field 0 and shifted every field by one.
+    char* fields_start = strchr(_buffer, FIELD_SEPARATOR);
+    if (fields_start == nullptr) {
+        return;
+    }
+    _field_count = splitFields(fields_start + 1, _field_ptrs, MAX_NMEA_FIELDS);
     
     // Parse based on sentence type
     switch (_current_sentence) {
@@ -214,9 +220,11 @@ void NmeaParser::parseGGA() {
     // 11: Geoid separation units (M)
     // 12: Age of differential corrections
     // 13: Differential reference station ID
-    // 14: Checksum
+    // 14: Checksum (not split out: it stays glued to the last field)
     
-    if (_field_count < 15) {
+    // Only the fields actually read are required, so a receiver that omits trailing
+    // fields is still parsed instead of being silently discarded.
+    if (_field_count < 9) {
         return;
     }
     
@@ -276,9 +284,9 @@ void NmeaParser::parseRMC() {
     //  9: Magnetic variation (degrees)
     // 10: Magnetic variation direction (E/W)
     // 11: Mode indicator (A=autonomous, D=differential, E=estimated, M=manual, S=simulated)
-    // 12: Checksum
+    // 12: Checksum (not split out: it stays glued to the last field)
     
-    if (_field_count < 13) {
+    if (_field_count < 9) {
         return;
     }
     
@@ -336,7 +344,7 @@ void NmeaParser::parseGSA() {
     // 15: HDOP
     // 16: VDOP
     
-    if (_field_count < 17) {
+    if (_field_count < 16) {
         return;
     }
     

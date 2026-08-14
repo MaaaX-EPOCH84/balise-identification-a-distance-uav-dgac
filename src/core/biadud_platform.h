@@ -258,6 +258,21 @@ String getWiFiMacAddressNoColons();
 // Returns: true if successful, false otherwise
 bool sendBeaconFrame(const uint8_t* buffer, uint16_t len);
 
+/**
+ * Last error code returned by the radio transmit call, 0 when none has failed yet.
+ * Diagnostic only: it tells a refused transmission from a frame never built.
+ */
+int getLastBeaconTxError();
+
+/**
+ * Read the MAC address of the soft AP interface
+ * The radio rejects any frame whose source address is not this one.
+ *
+ * @param mac_out Six byte buffer receiving the address
+ * @return true on success
+ */
+bool getApMacAddress(uint8_t* mac_out);
+
 // ================================================================================================
 // TIME HELPERS
 // ================================================================================================
