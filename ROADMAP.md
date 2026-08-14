@@ -26,7 +26,11 @@ Le firmware compile (`pio run -e esp32-c3` → SUCCESS) et le périmètre « GPS
 Deuxième défaut corrigé dans la foulée : les gardes exigeaient un nombre de champs exact (`< 15`, `< 13`, `< 17`) et rejetaient donc en silence toute trame dont les champs de queue sont omis. Elles ne réclament plus que les champs réellement lus.
 
 Instrumentation ajoutée à `main.cpp` et conservée : le relevé périodique affiche octets bruts reçus, phrases décodées, checksums invalides, dernier type de phrase, puis fix, satellites, HDOP, altitude et position. C'est elle qui a permis de distinguer une ligne coupée d'un parseur en défaut.
-1.6 🔶 [P4] Vérifier que `beaconManager.sendBeaconFrame()` s'exécute sans erreur, `esp_wifi_80211_tx` retournant `ESP_OK`
+1.6 ✅ [P4] **Émission validée le 13 août 2026** : `txerr=0`, `lasterr=0`, cinq trames de 143 octets en quinze secondes — une toutes les 3 s, cadence réglementaire. `esp_wifi_80211_tx` renvoie `ESP_OK`.
+
+**Deuxième bug bloquant trouvé et corrigé.** `BeaconManager::generateBeaconFrame()` appelait `_drone_id_fr.generateBeaconFrame(buffer, 0)` et n'émettait donc que l'élément vendor-specific, sans en-tête 802.11 : la radio lisait le tag `0xDD` comme un frame control et refusait tout avec `ESP_ERR_INVALID_ARG` (258). Ajout de `buildBeaconHeader()` — trame de gestion, diffusion générale, source et BSSID à la MAC de l'interface, paramètres fixes, DS parameter set, élément SSID — puis greffe de l'IE derrière, ce à quoi le paramètre `start_from` de `DroneIdFr` servait depuis le début. Ajout de `getApMacAddress()` côté plateforme, la radio refusant toute autre adresse source, et passage de `en_sys_seq` à `true` pour que le SDK renseigne le numéro de séquence.
+
+Instrumentation conservée : `getLastBeaconTxError()` garde le dernier code radio, `BeaconManager::getTxStatsString()` compte tentatives, refus de `shouldSend()`, trames vides et échecs. C'est ce triplet qui a distingué une trame jamais construite d'une trame refusée — le compteur `refused` très élevé est normal, `sendBeaconFrame()` étant appelé à chaque tour de boucle.
 1.7 ⬜ [P5] Confirmer que le comportement de la LED correspond au mapping documenté dans `AGENTS.md` — `BLINK_SLOW` puis `BLINK_FAST` puis `ON` selon l'état GPS et balise
 
 ## Étape 2 — Assemblage matériel et boîtier  [E5]
