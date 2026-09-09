@@ -4,7 +4,7 @@ Statut : ⬜ à faire · 🔶 en cours · ✅ fait · ❌ annulé
 
 | # | id | Étape | Contenu | État |
 |---|---|---|---|---|
-| 1 | E1 | Cœur minimal | GPS + trame balise DGAC, validation sur USB | 🔶 |
+| 1 | E1 | Cœur minimal | GPS + trame balise DGAC, validation sur USB | ✅ |
 | 2 | E5 | Assemblage matériel | Alimentation, signalisation, antenne et boîtier | ⬜ |
 | 3 | E6 | Signalisation et énergie | Mesure de batterie et alerte, côté firmware | ⬜ |
 | 4 | E2 | Portail de configuration | Serveur web et DNS captif dans `main.cpp` (Phase 2) | ⬜ |
@@ -31,17 +31,41 @@ Instrumentation ajoutée à `main.cpp` et conservée : le relevé périodique af
 **Deuxième bug bloquant trouvé et corrigé.** `BeaconManager::generateBeaconFrame()` appelait `_drone_id_fr.generateBeaconFrame(buffer, 0)` et n'émettait donc que l'élément vendor-specific, sans en-tête 802.11 : la radio lisait le tag `0xDD` comme un frame control et refusait tout avec `ESP_ERR_INVALID_ARG` (258). Ajout de `buildBeaconHeader()` — trame de gestion, diffusion générale, source et BSSID à la MAC de l'interface, paramètres fixes, DS parameter set, élément SSID — puis greffe de l'IE derrière, ce à quoi le paramètre `start_from` de `DroneIdFr` servait depuis le début. Ajout de `getApMacAddress()` côté plateforme, la radio refusant toute autre adresse source, et passage de `en_sys_seq` à `true` pour que le SDK renseigne le numéro de séquence.
 
 Instrumentation conservée : `getLastBeaconTxError()` garde le dernier code radio, `BeaconManager::getTxStatsString()` compte tentatives, refus de `shouldSend()`, trames vides et échecs. C'est ce triplet qui a distingué une trame jamais construite d'une trame refusée — le compteur `refused` très élevé est normal, `sendBeaconFrame()` étant appelé à chaque tour de boucle.
-1.7 ⬜ [P5] Confirmer que le comportement de la LED correspond au mapping documenté dans `AGENTS.md` — `BLINK_SLOW` puis `BLINK_FAST` puis `ON` selon l'état GPS et balise
+1.7 ✅ [P5] **Mapping LED vérifié sur matériel le 9 septembre 2026**, et trois défauts corrigés à cette occasion.
+
+**Polarité inversée.** La carte câble sa LED en **actif bas** — anode au 3,3 V, cathode sur GPIO8 — alors que `main.cpp` appelait `ledManager.begin()` sans second argument, donc en actif haut. Tous les états s'affichaient à l'envers, la LED s'éteignant pendant l'émission. Corrigé par `begin(PIN_LED, false)`.
+
+**Cadence plafonnée par l'appelant.** `ledManager.update()` était appelé sous une garde de 1 Hz, or c'est lui qui fait tourner les machines à états de clignotement et de pulsation. Toutes les cadences se trouvaient ramenées à celle de l'appelant : `BLINK_FAST` devenait indiscernable de `BLINK_SLOW` et `LED_PULSE` ne pouvait pas s'afficher. L'appel se fait désormais à chaque tour de boucle, `LedManager` gérant sa propre temporisation — la garde était redondante.
+
+**Deux états de clignotement identiques.** `LED_BLINK_SLOW` et `LED_BLINK_FAST` partageaient la même branche et le même `_blink_interval_ms`, que `setState()` ne renseignait jamais — seule la méthode `blink()`, jamais appelée, le faisait. L'énumération promettait deux vitesses et n'en délivrait qu'une. `setState()` pose maintenant 1000 ms pour lent et 200 ms pour rapide.
+
+**Vérifié sur matériel** : clignotement pendant la recherche, allumage fixe pendant l'émission. `LED_BLINK_FAST` reste transitoire par construction — `main.cpp` pose la position de référence dans la même itération que la détection du fix, donc l'état « fix acquis mais balise pas prête » ne dure qu'une fraction de seconde. Ce n'est pas un défaut.
+
+**Rend `P15` sans objet** : la correction de polarité prévue à l'étape 3 est faite ici.
 
 ## Étape 2 — Assemblage matériel et boîtier  [E5]
 
 Périmètre matériel arrêté le 12 août 2026, détaillé dans la section « Matériel embarqué » d'`AGENTS.md` : nomenclature, brochage, câblage, pièges d'assemblage.
 
-**En attente de livraison du buck-boost XL63020** (commandé le 12 août 2026). Cette attente bloque `P7`, `P9`, `P12` — et `P17` à l'étape 3, qui suppose l'assemblage complet. Elle ne bloque rien d'autre : `P8`, `P10` et `P11` se font sur une carte alimentée en USB, et **la chaîne de mesure de batterie fonctionne sans le régulateur** (cellule sur le TP4056, pont diviseur sur `OUT+`, carte en USB), donc l'étape 3 peut être menée en parallèle plutôt qu'après. L'ordre des étapes n'est plus contraignant tant que le module n'est pas là.
+**Alimentation et charge validées** (5 septembre 2026). Le buck-boost est monté et réglé, le chargeur MCP73871 a mené un cycle complet, la thermistance est en place. Le TP4056 initialement prévu a été abandonné, ses deux exemplaires ayant leur chemin de décharge hors service — détail dans `AGENTS.md`. Reste à connecter l'ESP32-C3 au régulateur, puis à câbler la signalisation et à dessiner le boîtier.
 
-2.1 ⬜ [P7] Souder le pad 3,3 V du XL63020 et vérifier la sortie à vide au multimètre avant tout raccordement à la carte
-2.2 ⬜ [P8] Ramener le courant de charge du TP4056 à 500 mA (résistance de 2,4 kΩ), et vérifier la continuité `5V` ↔ VBUS de la carte avant de câbler `IN+`/`IN-`
-2.3 ⬜ [P9] Câbler la chaîne d'alimentation : cellule → TP4056 → interrupteur → régulateur → 3V3 de la carte et VCC du GPS, avec le condensateur réservoir au plus près
+2.1 ✅ [P7] **Sortie du buck-boost réglée le 30 août 2026** : 3,28 V à vide, 3,29 V sous 100 Ω, soit 0,6 % du nominal.
+
+Le pad 3,3 V d'usine donnait **3,45 V**. La référence interne du clone XL63020 est à ~0,526 V au lieu des 0,500 V du TPS63020 authentique, et les ponts sérigraphiés ont été calculés pour la puce d'origine — valeur utilisable, l'ESP32-C3 admettant 3,0 à 3,6 V, mais avec seulement 150 mV de marge. Multimètre et oscilloscope concordants, l'instrument est hors de cause.
+
+Correction portée sur le **quatrième chemin de contre-réaction**, que la carte prévoit pour cet usage : un pont de 0 Ω et un emplacement libre où poser sa propre valeur, la résistance basse de ~180 kΩ étant commune aux quatre branches. Le pont de 0 Ω ressemble à un fusible et se mesure comme lui, mais la branche ne transporte que ~2,7 µA — rien ne peut s'y ouvrir.
+
+**Écarté** : reprendre les résistances du chemin 3,3 V d'usine, qui aurait supprimé le repli en cas de soudure ratée sur un composant de cette taille. **À ne jamais faire** : laisser deux pads pontés, les branches se mettant alors en parallèle et la sortie montant.
+2.2 ✅ [P8] **Chargeur MCP73871 en service le 5 septembre 2026** : cycle complet mené à son terme, courant décroissant en fin de charge puis **4,20 V** en tension finale — donc la version standard du circuit, parmi les quatre existantes (4,10 · 4,20 · 4,35 · 4,40 V).
+
+Réglages relevés : `PROG1` porte 2 kΩ d'usine, soit exactement les 500 mA visés (`I(mA) = 1000 / R(kΩ)`) ; `SEL`, `PROG2`, `CE` et `TE` sont tous à l'état haut, donc mode adaptateur secteur et minuteur désactivé ; le 10 kΩ fixe de `THERM` a été remplacé par la NTC 10 kΩ B3950, ce qui donne une fenêtre de charge d'environ +6 à +42 °C. Condensateur de 10 µF polarisé posé sur `BATT`, le datasheet exigeant 4,7 µF minimum.
+
+**Le TP4056 initialement prévu a été abandonné.** Ses deux exemplaires ont leur chemin de décharge hors service : `OUT-` flotte au lieu d'être collé à `B-`, et la tension s'effondre sous 100 Ω. Diagnostic mené en remontant de la cellule — celle-ci débite, ses soudures aussi, `IN+`↔`IN-` à 5 V — ce qui isole la section protection du module. Le MCP73871 apporte en prime le chemin d'alimentation, qui supprime la règle « interrupteur sur OFF pendant la charge ».
+
+**Un module détruit le 2 septembre 2026** en lançant le mode « test de charge rapide » du wattmètre avec la carte branchée : le testeur négocie jusqu'à 20 V, le maximum absolu du circuit est de 7,0 V. Schottky d'entrée en court-circuit, trois LED d'état grillées. Le reste du montage a été épargné parce que l'interrupteur était sur OFF.
+
+**Deux mesures inutiles à retenter** : l'ohmmètre sur les broches de configuration donne une valeur d'artefact identique pour toutes — c'est la tension, carte alimentée, qui dit l'état logique. Et le condensateur de 4700 µF fourni avec la carte se monte sur l'entrée, pas sur `BATT` : ne pas le monter du tout, l'appel de courant à la connexion est excessif.
+2.3 🔶 [P9] Câbler la chaîne d'alimentation : cellule → interrupteur sur le `+` → buck-boost → `3V3` de la carte et `VCC` du GPS, avec le condensateur réservoir de 220 µF polymère et son 100 nF au plus près — **entamé** : chaîne cellule → interrupteur → buck-boost câblée et mesurée à 3,28 V à vide, 3,29 V sous 100 Ω. **Bloqué** sur la livraison du condensateur réservoir polymère 220 µF avant de raccorder l'ESP32-C3 et le GPS
 2.4 ⬜ [P10] Câbler signalisation et entrées : LED verte déportée sur GPIO8, LED jaune sur GPIO6, LED rouge fixe sur le rail 3,3 V, bouton sur GPIO2, pont de 2 × 220 kΩ sur GPIO3
 2.5 ⬜ [P11] Basculer le cavalier RF vers le connecteur d'antenne externe et vérifier le gain de portée réel
 2.6 ⬜ [P12] Dessiner et imprimer le boîtier — PETG non chargé en carbone, ouvertures USB, interrupteur, bouton et LED, antenne GPS vers le ciel

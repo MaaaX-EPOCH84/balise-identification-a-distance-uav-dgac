@@ -91,6 +91,15 @@ void LedManager::toggle() {
 
 void LedManager::setState(LedState state) {
     _target_state = state;
+
+    // Each blink state carries its own cadence. Without this, both states shared the
+    // default interval and were indistinguishable, the enum promising two rates and
+    // delivering one.
+    if (state == LedState::LED_BLINK_SLOW) {
+        _blink_interval_ms = 1000;
+    } else if (state == LedState::LED_BLINK_FAST) {
+        _blink_interval_ms = 200;
+    }
     
     // If it's a simple state, apply immediately
     if (state == LedState::LED_ON) {

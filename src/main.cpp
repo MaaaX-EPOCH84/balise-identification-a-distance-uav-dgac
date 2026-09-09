@@ -47,7 +47,6 @@
 #define WIFI_AP_CHANNEL   1
 
 // Timing Configuration
-#define LED_BLINK_INTERVAL_MS   1000
 #define GPS_UPDATE_INTERVAL_MS   100
 
 // ================================================================================================
@@ -55,7 +54,6 @@
 // ================================================================================================
 
 // Timing state
-static uint32_t _last_led_blink_ms = 0;
 static uint32_t _last_gps_update_ms = 0;
 
 // GPS diagnostics — raw bytes pulled from the GPS UART by the main loop
@@ -117,7 +115,8 @@ void setup() {
     // Initialize LED
     // -------------------------------------------------------------------------------------------
     DEBUG_INFO("Initializing LED...");
-    ledManager.begin();
+    // This board wires the LED active low: anode to 3V3, cathode to the pin.
+    ledManager.begin(PIN_LED, false);
     ledManager.setState(LedState::LED_BLINK_SLOW);
     
     // -------------------------------------------------------------------------------------------
@@ -175,11 +174,10 @@ void setup() {
 // ================================================================================================
 
 void loop() {
-    // Blink LED to indicate system is running
-    if (hasElapsed(_last_led_blink_ms, LED_BLINK_INTERVAL_MS)) {
-        _last_led_blink_ms = millis();
-        ledManager.update();
-    }
+    // LedManager keeps its own timing, so it is updated every iteration. Gating this
+    // call capped every pattern at the caller's rate: fast blink became slow blink,
+    // and the pulse could not render at all.
+    ledManager.update();
     
     // -------------------------------------------------------------------------------------------
     // Update GPS data
