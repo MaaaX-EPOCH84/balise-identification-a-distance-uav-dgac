@@ -5,7 +5,7 @@ Statut : ⬜ à faire · 🔶 en cours · ✅ fait · ❌ annulé
 | # | id | Étape | Contenu | État |
 |---|---|---|---|---|
 | 1 | E1 | Cœur minimal | GPS + trame balise DGAC, validation sur USB | ✅ |
-| 2 | E5 | Assemblage matériel | Alimentation, signalisation, antenne et boîtier | ⬜ |
+| 2 | E5 | Assemblage matériel | Alimentation, signalisation, antenne et boîtier | 🔶 |
 | 3 | E6 | Signalisation et énergie | Mesure de batterie et alerte, côté firmware | ⬜ |
 | 4 | E2 | Portail de configuration | Serveur web et DNS captif dans `main.cpp` (Phase 2) | ⬜ |
 | 5 | E3 | Conformité réglementaire WiFi | Pays et puissance via `esp_wifi_set_country()` | ⬜ |
@@ -76,7 +76,11 @@ Volet firmware des décisions matérielles de l'étape 2. Règle de conformité 
 
 3.1 ⬜ [P13] Définir `PIN_BATTERY` dans `biadud_platform.h` et écrire `hardware/battery_monitor.{h,cpp}` : lecture sur ADC1, moyennage de plusieurs échantillons, conversion en tension cellule
 3.2 ⬜ [P14] Ajouter la seconde instance `LedManager` (`ledWarning`, GPIO6) et définir le mapping des signaux entre LED verte et LED jaune
-3.3 ⬜ [P15] Corriger la polarité de la LED d'état si la carte s'avère câblée en actif bas — second argument de `LedManager::begin()`
+3.3 ❌ [P15] **Sans objet depuis le 9 septembre 2026.** Le point séparait l'observation de la polarité, prévue à l'étape 1, de sa correction, prévue ici — découpage fondé sur l'idée que les deux se feraient à des moments différents.
+
+En pratique elles étaient inséparables : `P5` demandait de confirmer que le comportement de la LED correspond au mapping documenté, ce qui exigeait de corriger la polarité pour pouvoir l'observer. La carte câble sa LED en actif bas, `main.cpp` appelle désormais `begin(PIN_LED, false)`, et le livrable existe — commit `30a6ca6`. Le travail a donc eu lieu, simplement ailleurs.
+
+Annulé plutôt que supprimé, pour garder la trace du découpage initial et de la raison qui l'a rendu caduc.
 3.4 ⬜ [P16] Implémenter l'alerte de batterie faible : seuil autour de 3,4 V, signalement par la LED jaune, sans jamais interrompre l'émission
 3.5 ⬜ [P17] Mesurer l'autonomie réelle et la confronter à l'estimation de 5 à 8 heures
 
