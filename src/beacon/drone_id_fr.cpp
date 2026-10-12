@@ -253,7 +253,7 @@ uint8_t DroneIdFr::generateDroneFrame(uint8_t* full_frame, uint16_t start_from) 
     full_frame[start_from + count] = TLV_LENGTH[LATITUDE];
     count++;
     for (int8_t i = TLV_LENGTH[LATITUDE] - 1; i >= 0; i--) {
-        full_frame[start_from + count] = (get2Complement(_latitude) >> (8 * i)) & 0xFF;
+        full_frame[start_from + count] = (get2Complement(toFrameCoordinate(_latitude)) >> (8 * i)) & 0xFF;
         count++;
     }
     
@@ -263,7 +263,7 @@ uint8_t DroneIdFr::generateDroneFrame(uint8_t* full_frame, uint16_t start_from) 
     full_frame[start_from + count] = TLV_LENGTH[LONGITUDE];
     count++;
     for (int8_t i = TLV_LENGTH[LONGITUDE] - 1; i >= 0; i--) {
-        full_frame[start_from + count] = (get2Complement(_longitude) >> (8 * i)) & 0xFF;
+        full_frame[start_from + count] = (get2Complement(toFrameCoordinate(_longitude)) >> (8 * i)) & 0xFF;
         count++;
     }
     
@@ -293,7 +293,7 @@ uint8_t DroneIdFr::generateDroneFrame(uint8_t* full_frame, uint16_t start_from) 
     full_frame[start_from + count] = TLV_LENGTH[HOME_LATITUDE];
     count++;
     for (int8_t i = TLV_LENGTH[HOME_LATITUDE] - 1; i >= 0; i--) {
-        full_frame[start_from + count] = (get2Complement(_home_latitude) >> (8 * i)) & 0xFF;
+        full_frame[start_from + count] = (get2Complement(toFrameCoordinate(_home_latitude)) >> (8 * i)) & 0xFF;
         count++;
     }
     
@@ -303,7 +303,7 @@ uint8_t DroneIdFr::generateDroneFrame(uint8_t* full_frame, uint16_t start_from) 
     full_frame[start_from + count] = TLV_LENGTH[HOME_LONGITUDE];
     count++;
     for (int8_t i = TLV_LENGTH[HOME_LONGITUDE] - 1; i >= 0; i--) {
-        full_frame[start_from + count] = (get2Complement(_home_longitude) >> (8 * i)) & 0xFF;
+        full_frame[start_from + count] = (get2Complement(toFrameCoordinate(_home_longitude)) >> (8 * i)) & 0xFF;
         count++;
     }
     

@@ -43,7 +43,15 @@ Instrumentation conservée : `getLastBeaconTxError()` garde le dernier code radi
 
 **Rend `P15` sans objet** : la correction de polarité prévue à l'étape 3 est faite ici.
 
-1.8 ⬜ [P18] Émettre latitude et longitude, courantes et de départ, en **1e-5 degré** et non en 1e-7 : diviser par 100 avec arrondi à la sérialisation dans `DroneIdFr::generateBeaconFrame()`, et recouper l'unité dans l'annexe de l'arrêté. Défaut trouvé le 12 octobre 2026 par le récepteur de banc, qui lisait 4492,17° ; le sketch de référence, émetteur et récepteur, attend 1e-5. Fait quand le récepteur lit ~44,92° / ~4,70°
+1.8 ✅ [P18] Émettre latitude et longitude, courantes et de départ, en **1e-5 degré** et non en 1e-7 — **fait le 12 octobre 2026.**
+
+**Défaut** : trouvé par le récepteur de banc, qui lisait 4492,17°. La réécriture avait gardé le format interne en 1e-7 sans la division que le sketch de référence faisait à l'entrée (`set_current_position(int32_t)` × 1e-2). Un récepteur conforme situait la balise hors du globe.
+
+**Source vérifiée** : annexe III de l'arrêté du 27 décembre 2019, sur Légifrance — « précision fixe à 5 décimales […] multipliée par 10⁵ », exemple 48,15278 → `0x00 49 79 AE`. Le sketch de référence, émetteur et récepteur, concorde.
+
+**Retenu** : convertir à l'encodage seulement, par `DroneIdFr::toFrameCoordinate()` — division par 100, arrondi au plus proche avec le signe —, appliquée aux quatre champs dans `generateBeaconFrame()`. **Écarté** : passer tout le format interne en 1e-5, qui toucherait le calcul de distance des 30 m, `ConversionUtils` et les setters pour un gain nul, et perdrait deux décimales avant le calcul.
+
+**Attesté** : neuf cas d'arrondi testés sur le poste (demis positifs et négatifs, zéro, ±180°, valeurs réelles) ; sur matériel, le récepteur lit 44,92168° / 4,70081°, courant et départ, octets `00 44 8B 88` pour la latitude.
 1.9 ⬜ [P19] Rapatrier le récepteur de banc sous `tools/recepteur/` — projet PlatformIO autonome, en-tête GPL, décodage du type 12 (`CODEINFO`). Fait quand il compile depuis le dépôt et décode une trame reçue
 
 ## Étape 2 — Assemblage matériel et boîtier  [E5]

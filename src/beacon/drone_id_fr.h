@@ -286,12 +286,12 @@ private:
         PROTOCOL_VERSION = 1,
         ID_FR = 2,
         ID_ANSI_CTA = 3,
-        LATITUDE = 4,        // In WGS84 in degree * 1e7
-        LONGITUDE = 5,       // In WGS84 in degree * 1e7
+        LATITUDE = 4,        // In WGS84 in degree * 1e5 on air (1e7 internally)
+        LONGITUDE = 5,       // In WGS84 in degree * 1e5 on air (1e7 internally)
         ALTITUDE = 6,        // In MSL in meters
         HEIGTH = 7,          // From Home in meters
-        HOME_LATITUDE = 8,   // In WGS84 in degree * 1e7
-        HOME_LONGITUDE = 9,  // In WGS84 in degree * 1e7
+        HOME_LATITUDE = 8,   // In WGS84 in degree * 1e5 on air (1e7 internally)
+        HOME_LONGITUDE = 9,  // In WGS84 in degree * 1e5 on air (1e7 internally)
         GROUND_SPEED = 10,   // In m/s
         HEADING = 11,        // Heading in degree from north 0 to 359
         CODEINFO = 12,        // message info
@@ -382,6 +382,17 @@ private:
      */
     static inline uint32_t get2Complement(int32_t value) {
         return static_cast<uint32_t>(value) & 0xFFFFFFFF;
+    }
+
+    /**
+     * Convert an internal coordinate (degrees * 1e7) to the on-air unit (degrees * 1e5)
+     * required by the DGAC frame, rounding half away from zero
+     *
+     * @param value Coordinate in degrees * 1e7
+     * @return Coordinate in degrees * 1e5
+     */
+    static inline int32_t toFrameCoordinate(int32_t value) {
+        return (value >= 0 ? value + 50 : value - 50) / 100;
     }
 
     /**
