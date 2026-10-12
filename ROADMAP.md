@@ -98,7 +98,11 @@ Réglages relevés : `PROG1` porte 2 kΩ d'usine, soit exactement les 500 mA vis
 **Retenu** : les trois LED en **actif bas**, anode au 3V3 et 1 kΩ — comme la LED bleue de la carte, restée soudée sur GPIO8, sans quoi verte et bleue s'allumeraient à contretemps et `begin(PIN_LED, false)` serait faux pour l'une des deux. Pont sur **`BATT` du MCP73871, avant l'interrupteur** : sur `LOAD` il lirait l'USB dès qu'il est branché, et rien interrupteur ouvert ; son courant permanent, ~9,5 µA, est négligeable. **Écarté** : la LED RGB, trois GPIO pour rien que les motifs ne disent déjà.
 
 **À savoir** : GPIO2 est une broche de configuration du démarrage, mais le tenir bas au reset ne bloque pas le démarrage, vérifié. Le bouton n'est lu qu'une fois, ~1 s après le reset : il faut le tenir pendant le redémarrage.
-2.5 ⬜ [P11] Confirmer l'antenne externe par mesure du niveau reçu, antenne branchée puis débranchée — le cavalier est déjà sur l'externe d'usine ; le récepteur de banc donne le RSSI
+2.5 ✅ [P11] Confirmer l'antenne externe par mesure du niveau reçu — **fait le 12 octobre 2026.**
+
+**Attesté par mesure**, récepteur de banc et boîte métallique, sur 10 trames DGAC à chaque fois : référence à l'air libre −42 dBm (médiane) ; carte de la balise enfermée, antenne externe dehors −41,5 dBm, soit aucun écart au-delà de ±3 dB ; contrôle, récepteur entier enfermé −52 dBm, soit ~10 dB d'atténuation de la boîte. Si la balise rayonnait par son antenne intégrée, l'enfermer aurait coûté ces 10 dB : elle rayonne par l'externe. Concorde avec l'examen de la carte (8 octobre) et l'annonce du vendeur pour ce modèle (sélecteur sur l'externe, ne pas l'utiliser sans antenne).
+
+**Retenu** : enfermer la carte, antenne dehors — l'émetteur garde sa charge normale. **Écarté** : débrancher l'antenne de la balise, interdit puisqu'émettre à 20 dBm sans charge use l'étage de puissance ; enfermer l'antenne seule, qui la désaccorde et renvoie de la puissance vers l'émetteur ; l'ohmmètre sur la piste RF, que condensateurs série et selfs à la masse rendent illisible. **Réserves** : marge de 10 dB seulement, la boîte fuyant par sa fente ; le déplacement du récepteur pour le contrôle rend ces 10 dB approximatifs. Ni l'une ni l'autre ne renverse le résultat.
 2.6 ⬜ [P12] Dessiner et imprimer le boîtier — PETG non chargé en carbone, ouvertures USB, interrupteur, bouton et LED, antenne GPS vers le ciel
 
 ## Étape 3 — Signalisation et supervision d'énergie  [E6]
