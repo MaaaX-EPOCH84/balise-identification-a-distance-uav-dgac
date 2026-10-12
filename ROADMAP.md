@@ -4,7 +4,7 @@ Statut : ⬜ à faire · 🔶 en cours · ✅ fait · ❌ annulé
 
 | # | id | Étape | Contenu | État |
 |---|---|---|---|---|
-| 1 | E1 | Cœur minimal | GPS + trame balise DGAC, validation sur USB | ✅ |
+| 1 | E1 | Cœur minimal | GPS + trame balise DGAC, validation sur USB | 🔶 |
 | 2 | E5 | Assemblage matériel | Alimentation, signalisation, antenne et boîtier | 🔶 |
 | 3 | E6 | Signalisation et énergie | Mesure de batterie et alerte, côté firmware | ⬜ |
 | 4 | E2 | Portail de configuration | Serveur web et DNS captif dans `main.cpp` (Phase 2) | ⬜ |
@@ -43,6 +43,9 @@ Instrumentation conservée : `getLastBeaconTxError()` garde le dernier code radi
 
 **Rend `P15` sans objet** : la correction de polarité prévue à l'étape 3 est faite ici.
 
+1.8 ⬜ [P18] Émettre latitude et longitude, courantes et de départ, en **1e-5 degré** et non en 1e-7 : diviser par 100 avec arrondi à la sérialisation dans `DroneIdFr::generateBeaconFrame()`, et recouper l'unité dans l'annexe de l'arrêté. Défaut trouvé le 12 octobre 2026 par le récepteur de banc, qui lisait 4492,17° ; le sketch de référence, émetteur et récepteur, attend 1e-5. Fait quand le récepteur lit ~44,92° / ~4,70°
+1.9 ⬜ [P19] Rapatrier le récepteur de banc sous `tools/recepteur/` — projet PlatformIO autonome, en-tête GPL, décodage du type 12 (`CODEINFO`). Fait quand il compile depuis le dépôt et décode une trame reçue
+
 ## Étape 2 — Assemblage matériel et boîtier  [E5]
 
 Périmètre matériel arrêté le 12 août 2026, détaillé dans la section « Matériel embarqué » d'`AGENTS.md` : nomenclature, brochage, câblage, pièges d'assemblage.
@@ -65,9 +68,21 @@ Réglages relevés : `PROG1` porte 2 kΩ d'usine, soit exactement les 500 mA vis
 **Un module détruit le 2 septembre 2026** en lançant le mode « test de charge rapide » du wattmètre avec la carte branchée : le testeur négocie jusqu'à 20 V, le maximum absolu du circuit est de 7,0 V. Schottky d'entrée en court-circuit, trois LED d'état grillées. Le reste du montage a été épargné parce que l'interrupteur était sur OFF.
 
 **Deux mesures inutiles à retenter** : l'ohmmètre sur les broches de configuration donne une valeur d'artefact identique pour toutes — c'est la tension, carte alimentée, qui dit l'état logique. Et le condensateur de 4700 µF fourni avec la carte se monte sur l'entrée, pas sur `BATT` : ne pas le monter du tout, l'appel de courant à la connexion est excessif.
-2.3 🔶 [P9] Câbler la chaîne d'alimentation : cellule → interrupteur sur le `+` → buck-boost → `3V3` de la carte et `VCC` du GPS, avec le condensateur réservoir de 220 µF polymère et son 100 nF au plus près — **entamé** : chaîne cellule → interrupteur → buck-boost câblée et mesurée à 3,28 V à vide, 3,29 V sous 100 Ω. **Bloqué** sur la livraison du condensateur réservoir polymère 220 µF avant de raccorder l'ESP32-C3 et le GPS
-2.4 ⬜ [P10] Câbler signalisation et entrées : LED verte déportée sur GPIO8, LED jaune sur GPIO6, LED rouge fixe sur le rail 3,3 V, bouton sur GPIO2, pont de 2 × 220 kΩ sur GPIO3
-2.5 ⬜ [P11] Basculer le cavalier RF vers le connecteur d'antenne externe et vérifier le gain de portée réel
+2.3 ✅ [P9] Câbler la chaîne d'alimentation : cellule → interrupteur sur le `+` → buck-boost → `3V3` de la carte et `VCC` du GPS, avec le condensateur réservoir de 220 µF polymère et son 100 nF au plus près — **fait le 12 octobre 2026.**
+
+**Attesté sur matériel, batterie seule** (USB débranché, interrupteur sur ON) : 3,260 V sur `3V3` pendant l'émission contre 3,261 V au repos, 2,038 V sur GPIO3 (cellule ~4,08 V) ; trames DGAC reçues par le récepteur de banc toutes les ~3 s à −52/−55 dBm, identifiant `000MB1000000000000907069C29644`. Buck-boost : 3,28 V à vide, 3,29 V sous 100 Ω. Découplage 220 µF polymère 10 V + 100 nF céramique au plus près.
+
+**Retenu** : alimentation de la carte par sa pin `3V3`, jamais `5V` — une première soudure sur `5V` aurait renvoyé le VBUS sur tout le rail, relevée le 9 octobre avant mise sous tension. Interrupteur mécanique sur le `+`, `EN` du XL63020 relié à demeure à `VIN` : coupure franche, consommation nulle à l'arrêt.
+
+**Incident** : première ESP32-C3 abandonnée après deux défauts de reprise au fer — `EN` court-circuité par un résidu de flux (résolu au nettoyage), puis pastille `3V3` déconnectée du réseau interne. Montage refait sur une carte neuve ; l'identifiant DGAC a changé avec la MAC. Détail et leçons de diagnostic dans `AGENTS.md`.
+2.4 ✅ [P10] Câbler signalisation et entrées : LED verte déportée sur GPIO8, LED jaune sur GPIO6, LED rouge fixe sur le rail 3,3 V, bouton sur GPIO2, pont de 2 × 220 kΩ sur GPIO3 — **fait le 12 octobre 2026**, sur la carte neuve.
+
+**Attesté sur matériel** : verte et bleue de la carte clignotent ensemble sur GPIO8 sans fix, verte fixe pendant l'émission ; rouge du rail allumée ; jaune sur GPIO6 éteinte, attendu puisqu'aucun code ne la pilote encore (`P14`) ; pont mesuré à 2,023 V sur GPIO3 pour une cellule à ~4,05 V ; bouton GPIO2 tenu au redémarrage → `Factory reset requested via pin!`, démarrage normal.
+
+**Retenu** : les trois LED en **actif bas**, anode au 3V3 et 1 kΩ — comme la LED bleue de la carte, restée soudée sur GPIO8, sans quoi verte et bleue s'allumeraient à contretemps et `begin(PIN_LED, false)` serait faux pour l'une des deux. Pont sur **`BATT` du MCP73871, avant l'interrupteur** : sur `LOAD` il lirait l'USB dès qu'il est branché, et rien interrupteur ouvert ; son courant permanent, ~9,5 µA, est négligeable. **Écarté** : la LED RGB, trois GPIO pour rien que les motifs ne disent déjà.
+
+**À savoir** : GPIO2 est une broche de configuration du démarrage, mais le tenir bas au reset ne bloque pas le démarrage, vérifié. Le bouton n'est lu qu'une fois, ~1 s après le reset : il faut le tenir pendant le redémarrage.
+2.5 ⬜ [P11] Confirmer l'antenne externe par mesure du niveau reçu, antenne branchée puis débranchée — le cavalier est déjà sur l'externe d'usine ; le récepteur de banc donne le RSSI
 2.6 ⬜ [P12] Dessiner et imprimer le boîtier — PETG non chargé en carbone, ouvertures USB, interrupteur, bouton et LED, antenne GPS vers le ciel
 
 ## Étape 3 — Signalisation et supervision d'énergie  [E6]
