@@ -124,13 +124,6 @@ public:
      */
     void setHeading(uint16_t heading);
 
-    /**
-     * Set code info
-     * 
-     * @param codeinfo Code info value
-     */
-    void setCodeInfo(double codeinfo);
-
     // -------------------------------------------------------------------------------------------
     // SETTER FOR DRONE ID
     // -------------------------------------------------------------------------------------------
@@ -161,13 +154,6 @@ public:
      * @return Speed in km/h
      */
     double getGroundSpeedKmh() const;
-
-    /**
-     * Get code info
-     * 
-     * @return Code info value
-     */
-    double getCodeInfo() const;
 
     /**
      * Get the drone ID string
@@ -294,8 +280,7 @@ private:
         HOME_LONGITUDE = 9,  // In WGS84 in degree * 1e5 on air (1e7 internally)
         GROUND_SPEED = 10,   // In m/s
         HEADING = 11,        // Heading in degree from north 0 to 359
-        CODEINFO = 12,        // message info
-        NOT_DEFINED_END = 13,
+        NOT_DEFINED_END = 12, // Types 12 to 200 are reserved by the order: never emit them
     };
 
     // -------------------------------------------------------------------------------------------
@@ -316,7 +301,6 @@ private:
         4,  // [DataType::HOME_LONGITUDE]
         1,  // [DataType::GROUND_SPEED]
         2,  // [DataType::HEADING]
-        1,  // [DataType::CODEINFO]
     };
 
     // -------------------------------------------------------------------------------------------
@@ -345,7 +329,6 @@ private:
     // Navigation data
     double _ground_speed;        // Ground speed in m/s
     uint16_t _heading;          // Heading in degrees (0-359)
-    double _codeinfo;           // Code info value
     
     // Drone ID (30 bytes + null terminator)
     uint8_t _droneID[TLV_LENGTH[ID_FR] + 1]; // +1 for null termination

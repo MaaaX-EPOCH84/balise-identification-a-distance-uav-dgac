@@ -112,8 +112,7 @@ enum class DroneIdFrDataType : uint8_t {
     HOME_LONGITUDE  = 9,   // WGS84 in degree * 1e7
     GROUND_SPEED    = 10,  // In m/s (uint8_t)
     HEADING         = 11,  // Heading in degree from north 0-359 (uint16_t)
-    CODEINFO        = 12,  // Info code (uint8_t)
-    NOT_DEFINED_END = 13,
+    NOT_DEFINED_END = 12,  // Types 12 to 200 are reserved by the order: never emit them
 };
 
 // ================================================================================================
@@ -132,7 +131,6 @@ enum class DroneIdFrDataType : uint8_t {
 #define TLV_LENGTH_HOME_LONGITUDE    4   // int32_t
 #define TLV_LENGTH_GROUND_SPEED      1   // uint8_t
 #define TLV_LENGTH_HEADING           2   // uint16_t
-#define TLV_LENGTH_CODEINFO          1   // uint8_t
 
 // ================================================================================================
 // BEACON FRAME LIMITS (DGAC REGULATION)

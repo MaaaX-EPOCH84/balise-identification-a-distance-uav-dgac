@@ -4,7 +4,7 @@ Statut : ⬜ à faire · 🔶 en cours · ✅ fait · ❌ annulé
 
 | # | id | Étape | Contenu | État |
 |---|---|---|---|---|
-| 1 | E1 | Cœur minimal | GPS + trame balise DGAC, validation sur USB | ✅ |
+| 1 | E1 | Cœur minimal | GPS + trame balise DGAC, validation sur USB | 🔶 |
 | 2 | E5 | Assemblage matériel | Alimentation, signalisation, antenne et boîtier | 🔶 |
 | 3 | E6 | Signalisation et énergie | Mesure de batterie et alerte, côté firmware | ⬜ |
 | 4 | E2 | Portail de configuration | Serveur web et DNS captif dans `main.cpp` (Phase 2) | ⬜ |
@@ -62,6 +62,15 @@ Instrumentation conservée : `getLastBeaconTxError()` garde le dernier code radi
 
 **Relevé à cette occasion** : l'annexe réserve les types 12 à 200 « à une utilisation postérieure », et la balise émet un type 12 hérité du sketch de référence. Hors périmètre de ce point, à inscrire au plan.
 
+1.10 ✅ [P20] Retirer le TLV de type 12 (`CODEINFO`) de la trame — **fait le 12 octobre 2026.**
+
+**Motif** : l'annexe de l'arrêté définit les types 1 à 11 et réserve « les types 12 à 200 […] à une utilisation postérieure ». Le type 12 venait du sketch de référence, où un contributeur l'avait ajouté ; la balise l'émettait à 0, sans que rien dans le firmware ne le renseigne.
+
+**Retenu** : retrait complet — émission, `setCodeInfo()`/`getCodeInfo()` que rien n'appelait, membre `_codeinfo`, entrées des deux énumérations (`drone_id_fr.h`, `biadud_core.h`) et de `TLV_LENGTH`. La fin d'énumération porte « Types 12 to 200 are reserved by the order: never emit them », pour qu'il ne revienne pas par une reprise du sketch. **Écarté** : garder l'API en ne retirant que l'émission, qui laissait un champ mort invitant à le réactiver.
+
+**Attesté** : le récepteur de banc décode une trame qui s'arrête au type 0B, sans type réservé ; la balise rapporte `lastsize=140` (143 auparavant), `txerr=0`.
+1.11 ⬜ [P21] Figer la route émise sous un seuil de vitesse sol — dernier cap valide, 0 si aucun encore acquis —, le GPS donnant un cap aléatoire à l'arrêt (80° relevé à 0 m/s). Seuil autour de 1 m/s avec hystérésis, à fixer sur la dispersion réelle de la vitesse à l'arrêt. Fait quand le récepteur lit une route stable, balise posée, sur plusieurs minutes
+
 ## Étape 2 — Assemblage matériel et boîtier  [E5]
 
 Périmètre matériel arrêté le 12 août 2026, détaillé dans la section « Matériel embarqué » d'`AGENTS.md` : nomenclature, brochage, câblage, pièges d'assemblage.
@@ -103,7 +112,7 @@ Réglages relevés : `PROG1` porte 2 kΩ d'usine, soit exactement les 500 mA vis
 **Attesté par mesure**, récepteur de banc et boîte métallique, sur 10 trames DGAC à chaque fois : référence à l'air libre −42 dBm (médiane) ; carte de la balise enfermée, antenne externe dehors −41,5 dBm, soit aucun écart au-delà de ±3 dB ; contrôle, récepteur entier enfermé −52 dBm, soit ~10 dB d'atténuation de la boîte. Si la balise rayonnait par son antenne intégrée, l'enfermer aurait coûté ces 10 dB : elle rayonne par l'externe. Concorde avec l'examen de la carte (8 octobre) et l'annonce du vendeur pour ce modèle (sélecteur sur l'externe, ne pas l'utiliser sans antenne).
 
 **Retenu** : enfermer la carte, antenne dehors — l'émetteur garde sa charge normale. **Écarté** : débrancher l'antenne de la balise, interdit puisqu'émettre à 20 dBm sans charge use l'étage de puissance ; enfermer l'antenne seule, qui la désaccorde et renvoie de la puissance vers l'émetteur ; l'ohmmètre sur la piste RF, que condensateurs série et selfs à la masse rendent illisible. **Réserves** : marge de 10 dB seulement, la boîte fuyant par sa fente ; le déplacement du récepteur pour le contrôle rend ces 10 dB approximatifs. Ni l'une ni l'autre ne renverse le résultat.
-2.6 ⬜ [P12] Dessiner et imprimer le boîtier — PETG non chargé en carbone, ouvertures USB, interrupteur, bouton et LED, antenne GPS vers le ciel
+2.6 🔶 [P12] Dessiner et imprimer le boîtier — PETG non chargé en carbone, ouvertures USB, interrupteur, bouton et LED, antenne GPS vers le ciel
 
 ## Étape 3 — Signalisation et supervision d'énergie  [E6]
 
@@ -127,9 +136,9 @@ Réintégrer `network/web_server.{h,cpp}` et `network/dns_server.{h,cpp}` dans `
 
 ## Étape 5 — Conformité réglementaire WiFi (pays et puissance)  [E3]
 
-*(non détaillée)*
+Remplacer `WiFi.setCountry()`, inexistant dans le core Arduino-ESP32 2.0.x, par l'équivalent ESP-IDF `esp_wifi_set_country()` et sa struct `wifi_country_t`. Détaillée partiellement le 12 octobre 2026 : le reste se découpera au besoin.
 
-Remplacer `WiFi.setCountry()`, inexistant dans le core Arduino-ESP32 2.0.x, par l'équivalent ESP-IDF `esp_wifi_set_country()` et sa struct `wifi_country_t`.
+5.1 ⬜ [P22] Déclarer le pays `FR` par `esp_wifi_set_country()` — canaux 1 à 13, puissance plafonnée à 20 dBm —, la balise du point d'accès annonçant aujourd'hui `CN`. Ajouter au récepteur de banc le décodage de l'élément Country. Fait quand le récepteur lit `FR`
 
 ## Étape 6 — Extension multi-cibles  [E4]
 

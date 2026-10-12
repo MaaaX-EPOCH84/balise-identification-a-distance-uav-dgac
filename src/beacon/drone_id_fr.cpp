@@ -157,10 +157,6 @@ void DroneIdFr::setHeading(uint16_t heading) {
     _heading = heading;
 }
 
-void DroneIdFr::setCodeInfo(double codeinfo) {
-    _codeinfo = codeinfo;
-}
-
 // ================================================================================================
 // SETTER FOR DRONE ID
 // ================================================================================================
@@ -189,10 +185,6 @@ double DroneIdFr::getDistanceFromLastPositionSent() const {
 
 double DroneIdFr::getGroundSpeedKmh() const {
     return _ground_speed * 3.6; // Convert m/s to km/h
-}
-
-double DroneIdFr::getCodeInfo() const {
-    return _codeinfo;
 }
 
 // ================================================================================================
@@ -324,14 +316,6 @@ uint8_t DroneIdFr::generateDroneFrame(uint8_t* full_frame, uint16_t start_from) 
         full_frame[start_from + count] = (get2Complement(static_cast<int16_t>(_heading)) >> (8 * i)) & 0xFF;
         count++;
     }
-    
-    // CODEINFO
-    full_frame[start_from + count] = static_cast<uint8_t>(CODEINFO);
-    count++;
-    full_frame[start_from + count] = TLV_LENGTH[CODEINFO];
-    count++;
-    full_frame[start_from + count] = static_cast<uint8_t>(std::round(_codeinfo));
-    count++;
     
     return count;
 }
