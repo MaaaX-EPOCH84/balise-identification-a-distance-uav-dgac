@@ -34,6 +34,7 @@ BeaconManager beaconManager;
 BeaconManager::BeaconManager() : _drone_id_fr() {
     _initialized = false;
     _home_set = false;
+    _heading_tracking = false;
     _frame_count = 0;
     _last_send_ms = 0;
     _home_altitude = 0.0;
@@ -300,6 +301,7 @@ void BeaconManager::reset() {
     _last_send_ms = 0;
     _home_set = false;
     _home_altitude = 0.0;
+    _heading_tracking = false;
     _last_gps_data.reset();
     _last_send_position.latitude = 0.0;
     _last_send_position.longitude = 0.0;
@@ -362,8 +364,14 @@ void BeaconManager::updateDroneIdFr(const GpsData& gps_data) {
     // Update speed (convert from m/s to the internal representation)
     _drone_id_fr.setGroundSpeed(gps_data.speed);
     
-    // Update heading
-    if (gps_data.heading >= 0.0) {
+    // Update heading only while moving: at rest the course is noise, the last one measured
+    // in motion is sent instead (0 until the first one)
+    if (gps_data.speed >= HEADING_SPEED_ON_MPS) {
+        _heading_tracking = true;
+    } else if (gps_data.speed < HEADING_SPEED_OFF_MPS) {
+        _heading_tracking = false;
+    }
+    if (_heading_tracking && gps_data.heading >= 0.0) {
         _drone_id_fr.setHeading(static_cast<uint16_t>(gps_data.heading));
     }
     

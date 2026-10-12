@@ -252,7 +252,9 @@ void loop() {
                    " hdop=" + String(gps_diag.hdop, 2) +
                    " alt=" + String(gps_diag.altitude, 1) +
                    " lat=" + String(gps_diag.position.latitude, 6) +
-                   " lon=" + String(gps_diag.position.longitude, 6));
+                   " lon=" + String(gps_diag.position.longitude, 6) +
+                   " speed=" + String(gps_diag.speed, 2) +
+                   " course=" + String(gps_diag.heading, 1));
 
         if (_wifi_ready) {
             DEBUG_INFO(wifiManager.getNetworkInfo());

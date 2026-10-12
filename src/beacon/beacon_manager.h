@@ -230,6 +230,7 @@ private:
     bool _initialized = false;
     bool _home_set = false;
     double _home_altitude = 0.0;
+    bool _heading_tracking = false;  // Speed high enough for the course to mean something
 
     // -------------------------------------------------------------------------------------------
     // INTERNAL FUNCTIONS

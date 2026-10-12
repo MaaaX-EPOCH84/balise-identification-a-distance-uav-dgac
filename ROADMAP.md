@@ -69,7 +69,16 @@ Instrumentation conservée : `getLastBeaconTxError()` garde le dernier code radi
 **Retenu** : retrait complet — émission, `setCodeInfo()`/`getCodeInfo()` que rien n'appelait, membre `_codeinfo`, entrées des deux énumérations (`drone_id_fr.h`, `biadud_core.h`) et de `TLV_LENGTH`. La fin d'énumération porte « Types 12 to 200 are reserved by the order: never emit them », pour qu'il ne revienne pas par une reprise du sketch. **Écarté** : garder l'API en ne retirant que l'émission, qui laissait un champ mort invitant à le réactiver.
 
 **Attesté** : le récepteur de banc décode une trame qui s'arrête au type 0B, sans type réservé ; la balise rapporte `lastsize=140` (143 auparavant), `txerr=0`.
-1.11 ⬜ [P21] Figer la route émise sous un seuil de vitesse sol — dernier cap valide, 0 si aucun encore acquis —, le GPS donnant un cap aléatoire à l'arrêt (80° relevé à 0 m/s). Seuil autour de 1 m/s avec hystérésis, à fixer sur la dispersion réelle de la vitesse à l'arrêt. Fait quand le récepteur lit une route stable, balise posée, sur plusieurs minutes
+1.11 ✅ [P21] Figer la route émise sous un seuil de vitesse sol — **fait le 12 octobre 2026.**
+
+**Motif** : à l'arrêt, le GPS donne un cap aléatoire, et le u-blox le fige parfois lui-même sur une valeur tirée du bruit — 80° puis 50° relevés balise immobile.
+
+**Retenu** : dans `BeaconManager::updateDroneIdFr()`, la route n'est mise à jour qu'en mouvement, avec hystérésis — suivi repris à **1,0 m/s** (`HEADING_SPEED_ON_MPS`), abandonné sous **0,5 m/s** (`HEADING_SPEED_OFF_MPS`), constantes dans `biadud_core.h`. À l'arrêt la dernière route mesurée est émise, 0 tant qu'aucune ne l'a été. Seuil tiré d'une mesure : 60 relevés sur 5 min, balise au repos à l'intérieur, vitesse apparente au plus 0,22 m/s (moyenne 0,06). Instrumentation conservée : le relevé périodique de `main.cpp` affiche vitesse et cap bruts. **Écarté** : un seuil unique, qui ferait clignoter la route autour de lui ; figer dans `DroneIdFr`, couche d'encodage, qui aurait dépendu de l'ordre d'appel de `setGroundSpeed()` et `setHeading()`.
+
+**Attesté** au récepteur de banc, balise sur batterie : allers-retours le long d'un mur à peu près est-ouest, route ~100° à l'aller et ~285° au retour, demi-tours lus en une ou deux trames ; puis route figée à 293° pendant 40 s de pose dehors, et à **230° sur 106 trames, 5 min 15 de pose continue** à l'intérieur. Un premier essai au repos seul (79 trames à 0°) ne prouvait rien, le cap brut étant lui aussi resté à 0.
+
+**Limite connue** : un saut de position du GPS assez fort pour dépasser 1 m/s — 3 m/s relevés en rentrant à l'intérieur — met la route à jour. Sans dérive à l'arrêt pour autant. Traitée par `P23`, filtre du récepteur.
+1.12 ⬜ [P23] Configurer le filtre du u-blox par `UBX-CFG-NAV5` dans `gps_ublox` : modèle dynamique « airborne <1g » au lieu de « portable » d'usine, et *static hold* autour de 0,5 m/s, pour que le récepteur rejette lui-même les sauts de position et de vitesse (3 m/s relevés le 12 octobre à l'intérieur) et fige la position à l'arrêt. Aucun lissage de position côté firmware : il retarderait la position émise en vol. Un médian sur 3 mesures de vitesse et de route ne viendrait qu'en complément, si le récepteur ne suffit pas. Fait quand le récepteur accuse la configuration (`UBX-ACK-ACK`) et que, à marche identique, le récepteur de banc montre moins de sauts et une position stable à l'arrêt
 
 ## Étape 2 — Assemblage matériel et boîtier  [E5]
 
