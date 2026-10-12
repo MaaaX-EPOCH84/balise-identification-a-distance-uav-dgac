@@ -4,7 +4,7 @@ Statut : ⬜ à faire · 🔶 en cours · ✅ fait · ❌ annulé
 
 | # | id | Étape | Contenu | État |
 |---|---|---|---|---|
-| 1 | E1 | Cœur minimal | GPS + trame balise DGAC, validation sur USB | 🔶 |
+| 1 | E1 | Cœur minimal | GPS + trame balise DGAC, validation sur USB | ✅ |
 | 2 | E5 | Assemblage matériel | Alimentation, signalisation, antenne et boîtier | 🔶 |
 | 3 | E6 | Signalisation et énergie | Mesure de batterie et alerte, côté firmware | ⬜ |
 | 4 | E2 | Portail de configuration | Serveur web et DNS captif dans `main.cpp` (Phase 2) | ⬜ |
@@ -52,7 +52,15 @@ Instrumentation conservée : `getLastBeaconTxError()` garde le dernier code radi
 **Retenu** : convertir à l'encodage seulement, par `DroneIdFr::toFrameCoordinate()` — division par 100, arrondi au plus proche avec le signe —, appliquée aux quatre champs dans `generateBeaconFrame()`. **Écarté** : passer tout le format interne en 1e-5, qui toucherait le calcul de distance des 30 m, `ConversionUtils` et les setters pour un gain nul, et perdrait deux décimales avant le calcul.
 
 **Attesté** : neuf cas d'arrondi testés sur le poste (demis positifs et négatifs, zéro, ±180°, valeurs réelles) ; sur matériel, le récepteur lit 44,92168° / 4,70081°, courant et départ, octets `00 44 8B 88` pour la latitude.
-1.9 ⬜ [P19] Rapatrier le récepteur de banc sous `tools/recepteur/` — projet PlatformIO autonome, en-tête GPL, décodage du type 12 (`CODEINFO`). Fait quand il compile depuis le dépôt et décode une trame reçue
+1.9 ✅ [P19] Rapatrier le récepteur de banc sous `tools/recepteur/` — projet PlatformIO autonome, en-tête GPL, décodage du type 12 (`CODEINFO`) — **fait le 12 octobre 2026.**
+
+**Rôle** : vérification indépendante de la trame émise. Il écoute le canal 1 en mode promiscuité et décode l'IE `6A:5C:35` d'après l'annexe de l'arrêté, pas d'après le code de la balise — c'est ce qui lui a fait trouver le défaut d'unité de `P18`. Usage : `pio run -d tools/recepteur -t upload --upload-port <port>`, puis lecture série à 115200 ; cartes repérées par le numéro de série USB, qui porte la MAC.
+
+**Retenu** : un projet séparé, que le `pio run` racine ignore — la compilation de la balise reste intacte. **Écarté** : un second environnement dans le `platformio.ini` racine avec filtre de sources, qui mêlait deux programmes dans un même projet. **Écarté aussi** : le balayage `iw` du poste, impasse puisque le noyau ne garde que la dernière balise par BSSID et que celle du point d'accès écrase la trame DGAC.
+
+**Attesté** : `pio run -d tools/recepteur` réussit depuis le dépôt ; flashé sur l'ancienne carte, il décode la balise — identifiant, position 44,92170° / 4,70084°, altitude, hauteur, départ, vitesse, route — et signale le type 12 comme réservé.
+
+**Relevé à cette occasion** : l'annexe réserve les types 12 à 200 « à une utilisation postérieure », et la balise émet un type 12 hérité du sketch de référence. Hors périmètre de ce point, à inscrire au plan.
 
 ## Étape 2 — Assemblage matériel et boîtier  [E5]
 
