@@ -127,7 +127,7 @@ Réglages relevés : `PROG1` porte 2 kΩ d'usine, soit exactement les 500 mA vis
 
 Volet firmware des décisions matérielles de l'étape 2. Règle de conformité qui encadre tout ce qui suit : la balise doit émettre pendant tout le vol, donc une batterie faible se signale mais n'interrompt jamais l'émission.
 
-3.1 ⬜ [P13] Définir `PIN_BATTERY` dans `biadud_platform.h` et écrire `hardware/battery_monitor.{h,cpp}` : lecture sur ADC1, moyennage de plusieurs échantillons, conversion en tension cellule
+3.1 🔶 [P13] Définir `PIN_BATTERY` dans `biadud_platform.h` et écrire `hardware/battery_monitor.{h,cpp}` : lecture sur ADC1, moyennage de plusieurs échantillons, conversion en tension cellule
 3.2 ⬜ [P14] Ajouter la seconde instance `LedManager` (`ledWarning`, GPIO6) et définir le mapping des signaux entre LED verte et LED jaune
 3.3 ❌ [P15] **Sans objet depuis le 9 septembre 2026.** Le point séparait l'observation de la polarité, prévue à l'étape 1, de sa correction, prévue ici — découpage fondé sur l'idée que les deux se feraient à des moments différents.
 

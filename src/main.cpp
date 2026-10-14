@@ -32,6 +32,7 @@
 #include "gps/gps_manager.h"
 #include "storage/eeprom_manager.h"
 #include "hardware/led_manager.h"
+#include "hardware/battery_monitor.h"
 #include "network/wifi_manager.h"
 #include "utils/debug_utils.h"
 
@@ -120,6 +121,11 @@ void setup() {
     ledManager.setState(LedState::LED_BLINK_SLOW);
     
     // -------------------------------------------------------------------------------------------
+    // Initialize battery measurement
+    // -------------------------------------------------------------------------------------------
+    batteryMonitor.begin(PIN_BATTERY);
+    
+    // -------------------------------------------------------------------------------------------
     // Initialize GPS
     // -------------------------------------------------------------------------------------------
     DEBUG_INFO("Initializing GPS...");
@@ -178,6 +184,7 @@ void loop() {
     // call capped every pattern at the caller's rate: fast blink became slow blink,
     // and the pulse could not render at all.
     ledManager.update();
+    batteryMonitor.update();
     
     // -------------------------------------------------------------------------------------------
     // Update GPS data
@@ -237,6 +244,10 @@ void loop() {
         DEBUG_INFO("--- Status Update ---");
         DEBUG_INFO("Uptime: " + DebugUtils::getUptime());
         DEBUG_INFO("Free Heap: " + String(DebugUtils::getFreeHeap()) + " bytes");
+        if (batteryMonitor.isAvailable()) {
+            DEBUG_INFO("Battery: cell=" + String(batteryMonitor.getVoltageMv()) + " mV" +
+                       " pin=" + String(batteryMonitor.getPinVoltageMv()) + " mV");
+        }
         DEBUG_INFO(beaconManager.getStateString());
         DEBUG_INFO(beaconManager.getTxStatsString());
 

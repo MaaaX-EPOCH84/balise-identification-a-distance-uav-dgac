@@ -47,6 +47,7 @@
     #define PIN_GPS_RX             0   // GPS receiver (UART RX) - Connect to GPS TX
     #define PIN_GPS_TX             1   // GPS transmitter (UART TX) - Connect to GPS RX
     #define PIN_FACTORY_RESET      2   // Factory reset pin (GPIO 2)
+    #define PIN_BATTERY            3   // Battery voltage through a 2 x 220 kOhm divider (ADC1)
 
     // UART definitions
     #define GPS_UART_NUM           1   // Use UART 1 for GPS (UART 0 is used for debug)
@@ -99,6 +100,7 @@
     #define PIN_GPS_RX             0   // Default GPS RX pin
     #define PIN_GPS_TX             1   // Default GPS TX pin
     #define PIN_FACTORY_RESET      2   // Default factory reset pin
+    #define PIN_BATTERY           -1   // No battery measurement wired
 
     #define GPS_UART_NUM           1   // Use UART 1
 
@@ -139,6 +141,7 @@
     #define PIN_GPS_RX            16   // Default GPS RX
     #define PIN_GPS_TX            17   // Default GPS TX
     #define PIN_FACTORY_RESET     25   // Default factory reset
+    #define PIN_BATTERY           -1   // No battery measurement wired
 
     #define GPS_UART_NUM           1   // Use UART 1
 
@@ -180,6 +183,7 @@
     #define PIN_GPS_RX             4   // D2 - Connect to GPS TX
     #define PIN_GPS_TX             5   // D1 - Connect to GPS RX
     #define PIN_FACTORY_RESET      3   // RX - factory reset (with pullup)
+    #define PIN_BATTERY           -1   // No battery measurement wired
 
     // ESP8266 uses SoftwareSerial for GPS
     #define GPS_UART_NUM           -1  // Not applicable for SoftwareSerial
