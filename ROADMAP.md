@@ -6,7 +6,7 @@ Statut : ⬜ à faire · 🔶 en cours · ✅ fait · ❌ annulé
 |---|---|---|---|---|
 | 1 | E1 | Cœur minimal | GPS + trame balise DGAC, validation sur USB | 🔶 |
 | 2 | E5 | Assemblage matériel | Alimentation, signalisation, antenne et boîtier | 🔶 |
-| 3 | E6 | Signalisation et énergie | Mesure de batterie et alerte, côté firmware | ⬜ |
+| 3 | E6 | Signalisation et énergie | Mesure de batterie et alerte, côté firmware | 🔶 |
 | 4 | E2 | Portail de configuration | Serveur web et DNS captif dans `main.cpp` (Phase 2) | ⬜ |
 | 5 | E3 | Conformité réglementaire WiFi | Pays et puissance via `esp_wifi_set_country()` | ⬜ |
 | 6 | E4 | Extension multi-cibles | Environnements `esp32`, `esp32-s3`, `esp8266` | ⬜ |
@@ -78,7 +78,7 @@ Instrumentation conservée : `getLastBeaconTxError()` garde le dernier code radi
 **Attesté** au récepteur de banc, balise sur batterie : allers-retours le long d'un mur à peu près est-ouest, route ~100° à l'aller et ~285° au retour, demi-tours lus en une ou deux trames ; puis route figée à 293° pendant 40 s de pose dehors, et à **230° sur 106 trames, 5 min 15 de pose continue** à l'intérieur. Un premier essai au repos seul (79 trames à 0°) ne prouvait rien, le cap brut étant lui aussi resté à 0.
 
 **Limite connue** : un saut de position du GPS assez fort pour dépasser 1 m/s — 3 m/s relevés en rentrant à l'intérieur — met la route à jour. Sans dérive à l'arrêt pour autant. Traitée par `P23`, filtre du récepteur.
-1.12 ⬜ [P23] Configurer le filtre du u-blox par `UBX-CFG-NAV5` dans `gps_ublox` : modèle dynamique « airborne <1g » au lieu de « portable » d'usine, et *static hold* autour de 0,5 m/s, pour que le récepteur rejette lui-même les sauts de position et de vitesse (3 m/s relevés le 12 octobre à l'intérieur) et fige la position à l'arrêt. Aucun lissage de position côté firmware : il retarderait la position émise en vol. Un médian sur 3 mesures de vitesse et de route ne viendrait qu'en complément, si le récepteur ne suffit pas. Fait quand le récepteur accuse la configuration (`UBX-ACK-ACK`) et que, à marche identique, le récepteur de banc montre moins de sauts et une position stable à l'arrêt
+1.12 🔶 [P23] Configurer le filtre du u-blox par `UBX-CFG-NAV5` dans `gps_ublox` : modèle dynamique « airborne <1g » au lieu de « portable » d'usine, et *static hold* autour de 0,5 m/s, pour que le récepteur rejette lui-même les sauts de position et de vitesse (3 m/s relevés le 12 octobre à l'intérieur) et fige la position à l'arrêt. Aucun lissage de position côté firmware : il retarderait la position émise en vol. Un médian sur 3 mesures de vitesse et de route ne viendrait qu'en complément, si le récepteur ne suffit pas. Fait quand le récepteur accuse la configuration (`UBX-ACK-ACK`) et que, à marche identique, le récepteur de banc montre moins de sauts et une position stable à l'arrêt
 
 ## Étape 2 — Assemblage matériel et boîtier  [E5]
 
