@@ -127,7 +127,13 @@ Réglages relevés : `PROG1` porte 2 kΩ d'usine, soit exactement les 500 mA vis
 
 Volet firmware des décisions matérielles de l'étape 2. Règle de conformité qui encadre tout ce qui suit : la balise doit émettre pendant tout le vol, donc une batterie faible se signale mais n'interrompt jamais l'émission.
 
-3.1 🔶 [P13] Définir `PIN_BATTERY` dans `biadud_platform.h` et écrire `hardware/battery_monitor.{h,cpp}` : lecture sur ADC1, moyennage de plusieurs échantillons, conversion en tension cellule
+3.1 ✅ [P13] Définir `PIN_BATTERY` dans `biadud_platform.h` et écrire `hardware/battery_monitor.{h,cpp}` : lecture sur ADC1, moyennage de plusieurs échantillons, conversion en tension cellule — **fait le 23 octobre 2026.**
+
+**Attesté sur matériel** : le firmware lit 4 094 à 4 098 mV sur la cellule (broche 2 047 à 2 049 mV) contre 4,088 V au multimètre sur `BATT`, soit +8 mV (0,2 %), pour un critère de ±50 mV. Dispersion de 2 à 4 mV en émission. Code au commit `1f72a2c` : `PIN_BATTERY 3` sur C3 et `-1` ailleurs, ADC1 atténuation 11 dB (0 à 2 500 mV sur C3, doc Espressif), 16 échantillons par `analogReadMilliVolts`, une lecture par seconde, ligne `Battery:` du relevé périodique.
+
+**Retenu** : un **100 nF céramique entre GPIO3 et `GND`**, au plus près de la broche. Sans lui, l'ADC lisait 40 mV trop bas sur la broche (−80 mV sur la cellule, le 12 octobre) : les ~110 kΩ du point milieu ne rechargent pas assez vite la capacité d'échantillonnage. Le multimètre lisait le pont juste (2,031 V, cohérent avec sa charge de 10 MΩ), ce qui mettait l'ADC en cause et non le pont. Le 10 µF existant sur `BATT`, en haut du pont, n'y faisait rien.
+
+**Écarté** : la constante d'étalonnage logicielle, qui aurait masqué la cause et dérivé avec la tension ; un condensateur électrolytique, dont une fuite de l'ordre du µA fausserait la lecture d'une centaine de mV à travers 110 kΩ.
 3.2 ⬜ [P14] Ajouter la seconde instance `LedManager` (`ledWarning`, GPIO6) et définir le mapping des signaux entre LED verte et LED jaune
 3.3 ❌ [P15] **Sans objet depuis le 9 septembre 2026.** Le point séparait l'observation de la polarité, prévue à l'étape 1, de sa correction, prévue ici — découpage fondé sur l'idée que les deux se feraient à des moments différents.
 
