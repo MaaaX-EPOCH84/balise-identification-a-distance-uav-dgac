@@ -189,6 +189,13 @@ public:
      */
     String getLastSentenceType() const;
 
+    /**
+     * Outcome of the receiver navigation settings (u-blox UBX-CFG-NAV5)
+     *
+     * @return "ACK", "NAK", "no answer", "not sent", or "n/a" for another receiver
+     */
+    const char* getNavigationStatus() const;
+
     // -------------------------------------------------------------------------------------------
     // CONFIGURATION
     // -------------------------------------------------------------------------------------------

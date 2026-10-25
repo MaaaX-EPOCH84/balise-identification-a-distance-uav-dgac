@@ -64,10 +64,29 @@
 #define UBX_MSG_CFG_PRT     0x00  // Port Configuration
 #define UBX_MSG_CFG_MSG     0x01  // Message Configuration
 #define UBX_MSG_CFG_RATE    0x08  // Navigation/Measurement Rate Settings
+#define UBX_MSG_CFG_NAV5    0x24  // Navigation Engine Settings
 #define UBX_MSG_CFG_CFG     0x09  // Clear, Save, and Load Configuration
 #define UBX_MSG_CFG_GNSS    0x3E  // GNSS Configuration
 #define UBX_MSG_CFG_NMEA    0x17  // NMEA Protocol Configuration
 #define UBX_MSG_CFG_USB     0x1B  // USB Configuration
+
+#define UBX_MSG_ACK_NAK     0x00  // Message Not Acknowledged
+#define UBX_MSG_ACK_ACK     0x01  // Message Acknowledged
+
+// UBX-CFG-NAV5 (u-blox 8 / M8): 36-byte payload, little-endian. The mask selects which fields
+// the receiver applies; every other field is ignored, so it can stay zero.
+#define UBX_CFG_NAV5_PAYLOAD_LEN              36
+#define UBX_NAV5_MASK_DYN                     0x0001  // Apply dynamic model
+#define UBX_NAV5_MASK_STATIC_HOLD             0x0040  // Apply static hold settings
+#define UBX_NAV5_OFFSET_DYN_MODEL             2       // U1
+#define UBX_NAV5_OFFSET_STATIC_HOLD_THRESH    22      // U1, cm/s
+#define UBX_NAV5_OFFSET_STATIC_HOLD_MAX_DIST  28      // U2, m
+#define UBX_DYN_MODEL_AIRBORNE_1G             6
+
+// Below this ground speed the receiver freezes position and speed (cm/s)
+#define UBX_STATIC_HOLD_THRESH_CMS            50
+// Distance from the frozen position beyond which static hold is left (m)
+#define UBX_STATIC_HOLD_MAX_DIST_M            10
 
 // ================================================================================================
 // NMEA SENTENCE CONFIGURATION COMMANDS FOR UBLOX
@@ -83,6 +102,14 @@
 // ================================================================================================
 // UBLOX GPS MANAGER CLASS
 // ================================================================================================
+
+// Outcome of a configuration message sent to the receiver
+enum class UbxAckResult : uint8_t {
+    NOT_SENT,   // Never sent
+    ACK,        // UBX-ACK-ACK received
+    NAK,        // UBX-ACK-NAK received: the receiver understood and refused
+    TIMEOUT     // No acknowledgement within the delay
+};
 
 class UbloxGpsManager
 {
@@ -164,6 +191,11 @@ public:
      * @return true if GPS is initialized and ready
      */
     bool isReady() const { return _initialized; }
+
+    /**
+     * Outcome of the UBX-CFG-NAV5 message sent by initialize()
+     */
+    UbxAckResult getNavigationResult() const { return _nav_result; }
 
     // -------------------------------------------------------------------------------------------
     // SERIAL DATA PROCESSING
@@ -257,6 +289,7 @@ private:
     bool _initialized = false;
     uint32_t _current_baud = 0;
     uint8_t _current_rate = 0;
+    UbxAckResult _nav_result = UbxAckResult::NOT_SENT;
 
     // -------------------------------------------------------------------------------------------
     // INTERNAL FUNCTIONS
@@ -287,6 +320,23 @@ private:
      * @param rate Refresh rate in Hz
      */
     void configureUbxRate(uint8_t rate);
+
+    /**
+     * Send UBX-CFG-NAV5: airborne <1g dynamic model and static hold, then wait for the
+     * receiver's acknowledgement. Result kept in _nav_result.
+     */
+    void configureNavigation();
+
+    /**
+     * Read the GPS UART until the UBX-ACK-ACK or UBX-ACK-NAK for the given message arrives.
+     * NMEA bytes and acknowledgements of other messages are skipped.
+     *
+     * @param msg_class Class of the message being acknowledged
+     * @param msg_id ID of the message being acknowledged
+     * @param timeout_ms Maximum wait
+     * @return ACK, NAK, or TIMEOUT
+     */
+    UbxAckResult waitForUbxAck(uint8_t msg_class, uint8_t msg_id, uint32_t timeout_ms);
 
     /**
      * Wait for GPS to respond or timeout

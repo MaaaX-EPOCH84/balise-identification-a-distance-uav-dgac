@@ -73,6 +73,9 @@ bool UbloxGpsManager::initialize(uint32_t baud_rate, uint8_t refresh_rate) {
     
     // Configure refresh rate
     configureUbxRate(refresh_rate);
+
+    // Dynamic model and static hold: the receiver rejects jumps and freezes the position at rest
+    configureNavigation();
     
     // Wait a bit for configuration to take effect
     delay(250);
@@ -316,6 +319,77 @@ void UbloxGpsManager::configureUbxRate(uint8_t rate) {
     }
     
     delay(200);
+}
+
+void UbloxGpsManager::configureNavigation() {
+    // UBX-CFG-NAV5: B5 62 06 24 24 00 <36-byte payload> CK_A CK_B
+    uint8_t packet[6 + UBX_CFG_NAV5_PAYLOAD_LEN + 2] = {0};
+    packet[0] = UBX_SYNC_CHAR_1;
+    packet[1] = UBX_SYNC_CHAR_2;
+    packet[2] = UBX_CLASS_CFG;
+    packet[3] = UBX_MSG_CFG_NAV5;
+    packet[4] = UBX_CFG_NAV5_PAYLOAD_LEN & 0xFF;
+    packet[5] = UBX_CFG_NAV5_PAYLOAD_LEN >> 8;
+
+    uint8_t* payload = packet + 6;
+    const uint16_t mask = UBX_NAV5_MASK_DYN | UBX_NAV5_MASK_STATIC_HOLD;
+    payload[0] = mask & 0xFF;
+    payload[1] = mask >> 8;
+    payload[UBX_NAV5_OFFSET_DYN_MODEL] = UBX_DYN_MODEL_AIRBORNE_1G;
+    payload[UBX_NAV5_OFFSET_STATIC_HOLD_THRESH] = UBX_STATIC_HOLD_THRESH_CMS;
+    payload[UBX_NAV5_OFFSET_STATIC_HOLD_MAX_DIST] = UBX_STATIC_HOLD_MAX_DIST_M & 0xFF;
+    payload[UBX_NAV5_OFFSET_STATIC_HOLD_MAX_DIST + 1] = UBX_STATIC_HOLD_MAX_DIST_M >> 8;
+
+    // sendUbxPacket() fills in the checksum. A timeout is retried; a NAK is final.
+    _nav_result = UbxAckResult::TIMEOUT;
+    for (uint8_t attempt = 0; attempt < 3 && _nav_result == UbxAckResult::TIMEOUT; attempt++) {
+        flushSerial();
+        sendUbxPacket(packet, sizeof(packet));
+        _nav_result = waitForUbxAck(UBX_CLASS_CFG, UBX_MSG_CFG_NAV5, GPS_COMMAND_TIMEOUT_MS);
+    }
+}
+
+UbxAckResult UbloxGpsManager::waitForUbxAck(uint8_t msg_class, uint8_t msg_id, uint32_t timeout_ms) {
+    // UBX-ACK-ACK / UBX-ACK-NAK: B5 62 05 01|00 02 00 <class> <id> CK_A CK_B (10 bytes).
+    // The receiver also streams NMEA, which is ASCII and never holds 0xB5.
+    uint8_t frame[10];
+    uint8_t filled = 0;
+    uint32_t start_time = millis();
+
+    while (millis() - start_time < timeout_ms) {
+        if (!serialGPS.available()) {
+            delay(1);
+            continue;
+        }
+        uint8_t b = static_cast<uint8_t>(serialGPS.read());
+
+        // Resynchronise on the two sync characters
+        if (filled == 0) {
+            if (b == UBX_SYNC_CHAR_1) frame[filled++] = b;
+            continue;
+        }
+        if (filled == 1 && b != UBX_SYNC_CHAR_2) {
+            filled = (b == UBX_SYNC_CHAR_1) ? 1 : 0;
+            continue;
+        }
+        frame[filled++] = b;
+        if (filled < sizeof(frame)) continue;
+        filled = 0;
+
+        uint8_t ck_a = 0;
+        uint8_t ck_b = 0;
+        for (uint8_t i = 2; i < 8; i++) {
+            ck_a += frame[i];
+            ck_b += ck_a;
+        }
+        if (ck_a != frame[8] || ck_b != frame[9]) continue;
+        if (frame[2] != UBX_CLASS_ACK || frame[4] != 0x02 || frame[5] != 0x00) continue;
+        if (frame[6] != msg_class || frame[7] != msg_id) continue;
+
+        return (frame[3] == UBX_MSG_ACK_ACK) ? UbxAckResult::ACK : UbxAckResult::NAK;
+    }
+
+    return UbxAckResult::TIMEOUT;
 }
 
 bool UbloxGpsManager::waitForResponse(uint32_t timeout_ms) {

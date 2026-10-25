@@ -50,6 +50,13 @@
 // Timing Configuration
 #define GPS_UPDATE_INTERVAL_MS   100
 
+// Home position: wait for a settled fix, so the home altitude is not taken from the first
+// readings of a fix (a height of -37 m was seen at rest). If the sky never gets that good, the
+// beacon must still transmit, so the home is set anyway after the timeout.
+#define HOME_HDOP_MAX            2.0
+#define HOME_STABLE_MS           10000
+#define HOME_TIMEOUT_MS          60000
+
 // ================================================================================================
 // GLOBAL STATE
 // ================================================================================================
@@ -64,6 +71,12 @@ static uint32_t _gps_bytes_read = 0;
 static bool _system_initialized = false;
 static bool _wifi_ready = false;
 static bool _gps_ready = false;
+
+// Home position settling: since when the fix is valid, and since when its HDOP is good
+static bool _fix_seen = false;
+static uint32_t _fix_since_ms = 0;
+static bool _hdop_good = false;
+static uint32_t _hdop_good_since_ms = 0;
 
 // ================================================================================================
 // SETUP
@@ -139,6 +152,7 @@ void setup() {
     
     // Initialize GPS manager
     gpsManager.initialize(GPS_BAUD_RATE, GPS_REFRESH_RATE);
+    DEBUG_INFO("GPS navigation settings (UBX-CFG-NAV5): " + String(gpsManager.getNavigationStatus()));
     
     // -------------------------------------------------------------------------------------------
     // Initialize WiFi (beacon transmission mode only)
@@ -203,17 +217,46 @@ void loop() {
         gpsManager.update();
         
         // Check if GPS is now ready (isReady() is the full DGAC criteria: fix,
-        // 4+ satellites, HDOP below 5.0 and a valid altitude)
-        if (!_gps_ready && gpsManager.isReady()) {
-            _gps_ready = true;
-            DEBUG_INFO("GPS has valid fix!");
-            
-            // Set home position when GPS first gets a fix
+        // 4+ satellites, HDOP below 5.0 and a valid altitude), then wait for the fix to settle
+        // before taking the home position
+        if (!_gps_ready) {
             GpsData gps_data = gpsManager.getData();
-            if (gps_data.has_fix) {
-                beaconManager.setHomePosition(gps_data.position.latitude, 
-                                               gps_data.position.longitude, 
-                                               gps_data.altitude);
+            uint32_t now_ms = millis();
+
+            if (gpsManager.isReady() && gps_data.has_fix) {
+                if (!_fix_seen) {
+                    _fix_seen = true;
+                    _fix_since_ms = now_ms;
+                    DEBUG_INFO("GPS has valid fix, waiting for it to settle...");
+                }
+                if (gps_data.hdop < HOME_HDOP_MAX) {
+                    if (!_hdop_good) {
+                        _hdop_good = true;
+                        _hdop_good_since_ms = now_ms;
+                    }
+                } else {
+                    _hdop_good = false;
+                }
+
+                bool settled = _hdop_good && (now_ms - _hdop_good_since_ms) >= HOME_STABLE_MS;
+                bool timed_out = (now_ms - _fix_since_ms) >= HOME_TIMEOUT_MS;
+                if (settled || timed_out) {
+                    _gps_ready = true;
+                    if (settled) {
+                        DEBUG_INFO("GPS fix settled, home position set");
+                    } else {
+                        DEBUG_WARN("GPS fix never settled (HDOP " + String(gps_data.hdop, 2) +
+                                   "), home position set after timeout");
+                    }
+                    beaconManager.setHomePosition(gps_data.position.latitude,
+                                                   gps_data.position.longitude,
+                                                   gps_data.altitude);
+                }
+            } else {
+                // Fix lost before the home was set: the HDOP run starts over, but the timeout
+                // keeps counting from the first fix, so a fix that flickers cannot keep the
+                // beacon silent for good
+                _hdop_good = false;
             }
         }
         

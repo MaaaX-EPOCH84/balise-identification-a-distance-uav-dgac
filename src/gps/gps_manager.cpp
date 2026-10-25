@@ -215,6 +215,19 @@ String GpsManager::getLastSentenceType() const {
     return _parser.getLastSentenceType();
 }
 
+const char* GpsManager::getNavigationStatus() const {
+    #if !defined(GPS_MANAGER_BASIC_ONLY) && GPS_TYPE == GPS_TYPE_UBLOX
+        switch (_gps_impl.getNavigationResult()) {
+            case UbxAckResult::ACK:     return "ACK";
+            case UbxAckResult::NAK:     return "NAK";
+            case UbxAckResult::TIMEOUT: return "no answer";
+            default:                    return "not sent";
+        }
+    #else
+        return "n/a";
+    #endif
+}
+
 // ================================================================================================
 // CONFIGURATION
 // ================================================================================================

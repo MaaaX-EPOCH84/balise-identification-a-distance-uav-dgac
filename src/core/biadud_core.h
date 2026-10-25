@@ -142,12 +142,13 @@ enum class DroneIdFrDataType : uint8_t {
 // Maximum distance between two beacon frames: 30 meters
 #define BEACON_FRAME_DISTANCE_LIMIT_M  30.0
 
-// Ground speed thresholds for the heading. At rest the receiver reports a course that is
-// noise (up to 0.22 m/s of apparent speed measured on a BN-180 lying still), so the last
-// course measured in motion is kept until the speed rises again. The gap between the two
-// thresholds keeps the heading from flickering around a single value.
-#define HEADING_SPEED_ON_MPS           1.0
-#define HEADING_SPEED_OFF_MPS          0.5
+// Ground speed thresholds for the heading. Below them the last course measured in motion is
+// kept, because a receiver at rest reports a course that is noise. With the u-blox static hold
+// (UBX_STATIC_HOLD_THRESH_CMS, 0.5 m/s) the speed at rest stays under 0.10 m/s on a BN-180, so
+// the thresholds can sit close to a slow walk or a slow multirotor. The gap between the two
+// keeps the heading from flickering around a single value.
+#define HEADING_SPEED_ON_MPS           0.6
+#define HEADING_SPEED_OFF_MPS          0.4
 
 // Maximum payload length for beacon frame
 #define BEACON_FRAME_PAYLOAD_LEN_MAX    251
