@@ -57,6 +57,13 @@
 #define HOME_STABLE_MS           10000
 #define HOME_TIMEOUT_MS          60000
 
+// Fault indication: the GPS link is dead when no valid sentence was decoded for this long, and
+// the radio is considered lost after this many refused frames in a row (about 9 s at the 3 s
+// period). Emission is never interrupted by either: the last position keeps being sent.
+#define GPS_SILENCE_MS           5000
+#define WIFI_TX_FAIL_LIMIT       3
+#define LED_TEST_MS              1000
+
 // ================================================================================================
 // GLOBAL STATE
 // ================================================================================================
@@ -71,6 +78,15 @@ static uint32_t _gps_bytes_read = 0;
 static bool _system_initialized = false;
 static bool _wifi_ready = false;
 static bool _gps_ready = false;
+
+// Link supervision: last time the decoded sentence count moved
+static uint32_t _gps_sentences_seen = 0;
+static uint32_t _gps_last_sentence_ms = 0;
+
+// Last states handed to the LEDs, so setState() is only called on a change
+static bool _led_states_known = false;
+static LedState _green_state = LedState::LED_OFF;
+static LedState _yellow_state = LedState::LED_OFF;
 
 // Home position settling: since when the fix is valid, and since when its HDOP is good
 static bool _fix_seen = false;
@@ -131,7 +147,16 @@ void setup() {
     DEBUG_INFO("Initializing LED...");
     // This board wires the LED active low: anode to 3V3, cathode to the pin.
     ledManager.begin(PIN_LED, false);
+    // Warning LED, same wiring
+    ledWarning.begin(PIN_LED_WARNING, false);
+
+    // Lamp test: both LEDs on for a second, which also shows a LED with a bad contact. The red
+    // power LED is wired to the rail and needs no test.
+    ledManager.setState(LedState::LED_ON);
+    ledWarning.setState(LedState::LED_ON);
+    delay(LED_TEST_MS);
     ledManager.setState(LedState::LED_BLINK_SLOW);
+    ledWarning.setState(LedState::LED_OFF);
     
     // -------------------------------------------------------------------------------------------
     // Initialize battery measurement
@@ -152,6 +177,7 @@ void setup() {
     
     // Initialize GPS manager
     gpsManager.initialize(GPS_BAUD_RATE, GPS_REFRESH_RATE);
+    _gps_last_sentence_ms = millis();   // Silence is measured from here
     DEBUG_INFO("GPS navigation settings (UBX-CFG-NAV5): " + String(gpsManager.getNavigationStatus()));
     
     // -------------------------------------------------------------------------------------------
@@ -193,11 +219,69 @@ void setup() {
 // LOOP
 // ================================================================================================
 
+// ================================================================================================
+// LED INDICATION
+// ================================================================================================
+
+/**
+ * Drive the two LEDs from the system state, every loop iteration.
+ *
+ * Green says how far the beacon has got: blinking while it waits for a first fix or after a fix
+ * is lost, steady once it transmits, off when the radio is down. Yellow says what is broken:
+ * off when all is well, blinking when either the GPS link or the radio is lost, steady when both
+ * are. "No GPS" means no communication with the module, not the absence of a fix: searching for
+ * a fix is a normal state and belongs to the green LED.
+ *
+ * Emission is not touched by any of this: with a mute GPS the last position keeps being sent.
+ */
+static void updateIndicators() {
+    uint32_t sentences = gpsManager.getSentenceCount();
+    if (sentences != _gps_sentences_seen) {
+        _gps_sentences_seen = sentences;
+        _gps_last_sentence_ms = millis();
+    }
+
+    const bool gps_mute = (millis() - _gps_last_sentence_ms) >= GPS_SILENCE_MS;
+    const bool wifi_lost = !_wifi_ready ||
+                           beaconManager.getConsecutiveTxErrors() >= WIFI_TX_FAIL_LIMIT;
+
+    LedState green;
+    if (wifi_lost) {
+        green = LedState::LED_OFF;
+    } else if (!gps_mute && beaconManager.isReady()) {
+        green = LedState::LED_ON;
+    } else {
+        green = LedState::LED_BLINK_SLOW;
+    }
+
+    LedState yellow;
+    if (gps_mute && wifi_lost) {
+        yellow = LedState::LED_ON;
+    } else if (gps_mute || wifi_lost) {
+        yellow = LedState::LED_BLINK_FAST;
+    } else {
+        yellow = LedState::LED_OFF;
+    }
+
+    // setState() restarts a blink pattern, so it is only called when the state changes
+    if (!_led_states_known || green != _green_state) {
+        ledManager.setState(green);
+        _green_state = green;
+    }
+    if (!_led_states_known || yellow != _yellow_state) {
+        ledWarning.setState(yellow);
+        _yellow_state = yellow;
+    }
+    _led_states_known = true;
+}
+
 void loop() {
     // LedManager keeps its own timing, so it is updated every iteration. Gating this
     // call capped every pattern at the caller's rate: fast blink became slow blink,
     // and the pulse could not render at all.
     ledManager.update();
+    ledWarning.update();
+    updateIndicators();
     batteryMonitor.update();
     
     // -------------------------------------------------------------------------------------------
@@ -312,17 +396,6 @@ void loop() {
 
         if (_wifi_ready) {
             DEBUG_INFO(wifiManager.getNetworkInfo());
-        }
-        
-        // Update LED state based on system state
-        if (beaconManager.isReady()) {
-            ledManager.setState(LedState::LED_ON);
-        } else if (_gps_ready) {
-            ledManager.setState(LedState::LED_BLINK_FAST);
-        } else if (_wifi_ready) {
-            ledManager.setState(LedState::LED_BLINK_SLOW);
-        } else {
-            ledManager.setState(LedState::LED_PULSE);
         }
     }
 }

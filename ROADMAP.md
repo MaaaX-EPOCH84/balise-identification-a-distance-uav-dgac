@@ -142,7 +142,17 @@ Volet firmware des décisions matérielles de l'étape 2. Règle de conformité 
 **Retenu** : un **100 nF céramique entre GPIO3 et `GND`**, au plus près de la broche. Sans lui, l'ADC lisait 40 mV trop bas sur la broche (−80 mV sur la cellule, le 12 octobre) : les ~110 kΩ du point milieu ne rechargent pas assez vite la capacité d'échantillonnage. Le multimètre lisait le pont juste (2,031 V, cohérent avec sa charge de 10 MΩ), ce qui mettait l'ADC en cause et non le pont. Le 10 µF existant sur `BATT`, en haut du pont, n'y faisait rien.
 
 **Écarté** : la constante d'étalonnage logicielle, qui aurait masqué la cause et dérivé avec la tension ; un condensateur électrolytique, dont une fuite de l'ordre du µA fausserait la lecture d'une centaine de mV à travers 110 kΩ.
-3.2 ⬜ [P14] Ajouter la seconde instance `LedManager` (`ledWarning`, GPIO6) et définir le mapping des signaux entre LED verte et LED jaune
+3.2 ✅ [P14] Ajouter la seconde instance `LedManager` (`ledWarning`, GPIO6) et poser le mapping des LED : verte = avancement (clignote en attendant le premier fix ou après sa perte, fixe quand la balise émet), jaune = pannes (éteinte, clignotante si GPS muet ou WiFi KO, fixe si les deux). « GPS muet » : aucune phrase NMEA valide depuis plus de 5 s. « WiFi KO » : radio non initialisée, ou 3 échecs d'émission consécutifs. Test de démarrage : verte et jaune allumées 1 s. Fait quand chaque état est provoqué et observé sur matériel (GPS débranché, WiFi non initialisé), et que l'émission continue avec la dernière position quand le GPS se tait — **fait le 27 octobre 2026.**
+
+**Attesté sur matériel** : au démarrage, verte et jaune allumées 1 s (le test a révélé un défaut de câblage sur chacune, réparés depuis). GPS branché : verte clignotante jusqu'au fix, fixe ensuite, jaune éteinte. GPS débranché en marche : jaune clignotante en moins de 5 s, verte clignotante. GPS rebranché : retour à verte fixe. Perte de fix provoquée par un blindage fermé (aluminium et boîte métallique, antenne vers le bas) : verte clignotante pendant la perte, fixe au retour, jaune restée éteinte puisque le lien GPS parlait toujours ; compteur de trames figé à 408 puis repris (424, 426). Firmware compilé et flashé le 26 octobre.
+
+**Retenu** : `ledWarning` sur `PIN_LED_WARNING` (6 sur C3, -1 ailleurs), actif bas. `updateIndicators()` évalue les deux LED à chaque tour de boucle et n'appelle `setState()` qu'au changement. Verte = avancement : fixe si WiFi bon, GPS parlant et `isReady()`, clignotement lent sinon, éteinte si le WiFi est perdu. Jaune = pannes : éteinte, clignotement rapide si GPS muet ou WiFi perdu, fixe si les deux. GPS muet : aucune phrase décodée depuis 5 s (`GPS_SILENCE_MS`), mesuré depuis l'initialisation. WiFi perdu : radio non initialisée ou 3 refus d'émission consécutifs (`WIFI_TX_FAIL_LIMIT`, `BeaconManager::getConsecutiveTxErrors()`). Test de démarrage de 1 s (`LED_TEST_MS`). L'émission n'est pas touchée par ces signaux.
+
+**Écarté** : une jaune sur perte de fix, qui aurait clignoté à chaque acquisition normale du premier fix ; faire expirer les données GPS pour que `isReady()` retombe, ce qui aurait coupé l'émission dès que le GPS se tait ; l'état de pulsation de la verte, supprimé.
+
+**Non éprouvé** : le WiFi perdu, jamais provoqué sur la carte et appuyé par la seule lecture du code ; l'émission pendant GPS muet, non confirmée au récepteur de banc.
+
+**Constaté hors périmètre** : à la perte de fix la balise cesse d'émettre (`shouldSend()` exige 4 satellites et HDOP < 5), ce qui contredit la règle de ne jamais interrompre l'émission en vol. Ce que l'arrêté exige dans ce cas n'a pas été lu ; non inscrit au plan.
 3.3 ❌ [P15] **Sans objet depuis le 9 septembre 2026.** Le point séparait l'observation de la polarité, prévue à l'étape 1, de sa correction, prévue ici — découpage fondé sur l'idée que les deux se feraient à des moments différents.
 
 En pratique elles étaient inséparables : `P5` demandait de confirmer que le comportement de la LED correspond au mapping documenté, ce qui exigeait de corriger la polarité pour pouvoir l'observer. La carte câble sa LED en actif bas, `main.cpp` appelle désormais `begin(PIN_LED, false)`, et le livrable existe — commit `30a6ca6`. Le travail a donc eu lieu, simplement ailleurs.
@@ -150,6 +160,9 @@ En pratique elles étaient inséparables : `P5` demandait de confirmer que le co
 Annulé plutôt que supprimé, pour garder la trace du découpage initial et de la raison qui l'a rendu caduc.
 3.4 ⬜ [P16] Implémenter l'alerte de batterie faible : seuil autour de 3,4 V, signalement par la LED jaune, sans jamais interrompre l'émission
 3.5 ⬜ [P17] Mesurer l'autonomie réelle et la confronter à l'estimation de 5 à 8 heures
+3.6 ⬜ [P24] Journal d'événements en NVS : tampon circulaire de 64 entrées de 8 octets (temps depuis le démarrage, numéro de démarrage, type, valeur), écrit aux transitions seulement et coalescé pour limiter l'usure. Événements : fix acquis et perdu (satellites), GPS muet et revenu, WiFi KO et revenu (dernier code radio), batterie faible (tension, avec P16), et cause de chaque redémarrage (`esp_reset_reason()`). Affichage sur le port série au démarrage. Fait quand une coupure d'alimentation, un GPS débranché et un fix perdu y sont retrouvés après redémarrage, et que le tampon ne dépasse jamais sa taille après plus de 64 événements
+
+**Écarté** : l'`EEPROM` du projet, qui réécrit une page entière à chaque écriture ; un journal à historique long, seule la cause récente compte ; l'écriture à chaque trame.
 
 ## Étape 4 — Portail de configuration (Phase 2)  [E2]
 

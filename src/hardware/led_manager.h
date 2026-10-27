@@ -321,7 +321,8 @@ private:
     uint8_t calculatePulseDuty();
 };
 
-// Global LED manager instance
+// Global LED manager instances: status (green) and warning (yellow)
 extern LedManager ledManager;
+extern LedManager ledWarning;
 
 #endif // #ifndef LED_MANAGER_H

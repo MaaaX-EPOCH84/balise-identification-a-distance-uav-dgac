@@ -207,6 +207,7 @@ bool BeaconManager::sendBeaconFrame() {
     bool sent = ::sendBeaconFrame(frame_buffer, frame_size);
     
     if (sent) {
+        _consecutive_tx_errors = 0;
         _frame_count++;
         _last_send_ms = millis();
         _last_send_position = _last_gps_data.position;
@@ -215,6 +216,7 @@ bool BeaconManager::sendBeaconFrame() {
         _drone_id_fr.setLastSend();
     } else {
         _tx_error_count++;
+        _consecutive_tx_errors++;
     }
 
     return sent;

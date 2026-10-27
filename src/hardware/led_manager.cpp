@@ -24,8 +24,9 @@
 
 #include "led_manager.h"
 
-// Global LED manager instance
+// Global LED manager instances: status (green) and warning (yellow)
 LedManager ledManager;
+LedManager ledWarning;
 
 // ================================================================================================
 // CONSTRUCTOR / DESTRUCTOR

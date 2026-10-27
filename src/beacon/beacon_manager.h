@@ -202,6 +202,11 @@ public:
      */
     String getTxStatsString() const;
 
+    /**
+     * Radio refusals since the last accepted frame. Reset by any successful send.
+     */
+    uint32_t getConsecutiveTxErrors() const { return _consecutive_tx_errors; }
+
 private:
     // -------------------------------------------------------------------------------------------
     // INTERNAL DATA
@@ -219,6 +224,7 @@ private:
     uint32_t _refused_count = 0;
     uint32_t _empty_frame_count = 0;
     uint32_t _tx_error_count = 0;
+    uint32_t _consecutive_tx_errors = 0;
     uint16_t _last_frame_size = 0;
 
     // Beacon statistics
