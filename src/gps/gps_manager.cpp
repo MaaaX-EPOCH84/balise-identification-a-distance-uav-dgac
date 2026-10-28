@@ -97,13 +97,13 @@ bool GpsManager::hasValidFix() const {
 
 bool GpsManager::hasEnoughSatellites() const {
     const GpsData& data = getData();
-    // DGAC requires at least 4 satellites
+    // Quality threshold, not a regulatory one: at least 4 satellites
     return data.satellites >= 4;
 }
 
 bool GpsManager::hasGoodPrecision() const {
     const GpsData& data = getData();
-    // DGAC requires HDOP < 5.0
+    // Quality threshold, not a regulatory one: HDOP up to 5.0
     return data.hdop > 0 && data.hdop <= 5.0;
 }
 

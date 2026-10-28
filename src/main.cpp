@@ -155,8 +155,10 @@ void setup() {
     ledManager.setState(LedState::LED_ON);
     ledWarning.setState(LedState::LED_ON);
     delay(LED_TEST_MS);
-    ledManager.setState(LedState::LED_BLINK_SLOW);
-    ledWarning.setState(LedState::LED_OFF);
+    // Then initialization: the yellow LED says so until the GPS is heard. It cannot blink
+    // during the blocking GPS and WiFi setup below, only once the loop runs.
+    ledManager.setState(LedState::LED_OFF);
+    ledWarning.setState(LedState::LED_BLINK_SLOW);
     
     // -------------------------------------------------------------------------------------------
     // Initialize battery measurement
@@ -224,40 +226,55 @@ void setup() {
 // ================================================================================================
 
 /**
- * Drive the two LEDs from the system state, every loop iteration.
+ * Track the GPS link: it is mute when no valid sentence was decoded for GPS_SILENCE_MS.
+ * "Mute" means no communication with the module, not the absence of a fix.
  *
- * Green says how far the beacon has got: blinking while it waits for a first fix or after a fix
- * is lost, steady once it transmits, off when the radio is down. Yellow says what is broken:
- * off when all is well, blinking when either the GPS link or the radio is lost, steady when both
- * are. "No GPS" means no communication with the module, not the absence of a fix: searching for
- * a fix is a normal state and belongs to the green LED.
- *
- * Emission is not touched by any of this: with a mute GPS the last position keeps being sent.
+ * @return true while the GPS is mute
  */
-static void updateIndicators() {
+static bool isGpsMute() {
     uint32_t sentences = gpsManager.getSentenceCount();
     if (sentences != _gps_sentences_seen) {
         _gps_sentences_seen = sentences;
         _gps_last_sentence_ms = millis();
     }
+    return (millis() - _gps_last_sentence_ms) >= GPS_SILENCE_MS;
+}
 
-    const bool gps_mute = (millis() - _gps_last_sentence_ms) >= GPS_SILENCE_MS;
+/**
+ * Drive the two LEDs from the system state, every loop iteration. They are independent.
+ *
+ * Green says what is sent: off when nothing is, fast blink while a fix settles before the home
+ * position is set, slow blink while the last position is sent again for want of a live fix,
+ * steady when a live position is sent.
+ *
+ * Yellow says what is wrong: off when nothing is, slow blink until the GPS is first heard,
+ * fast blink while searching for a fix, steady when the GPS is mute or the radio lost. A low
+ * battery will get its own pattern, a double flash.
+ */
+static void updateIndicators() {
+    const bool gps_mute = isGpsMute();
+    const bool gps_heard = _gps_sentences_seen > 0;
     const bool wifi_lost = !_wifi_ready ||
                            beaconManager.getConsecutiveTxErrors() >= WIFI_TX_FAIL_LIMIT;
+    const bool has_fix = !gps_mute && gpsManager.getData().has_fix;
 
     LedState green;
     if (wifi_lost) {
         green = LedState::LED_OFF;
-    } else if (!gps_mute && beaconManager.isReady()) {
-        green = LedState::LED_ON;
+    } else if (beaconManager.isReady()) {
+        green = beaconManager.isPositionFrozen() ? LedState::LED_BLINK_SLOW : LedState::LED_ON;
+    } else if (has_fix && gpsManager.isReady()) {
+        green = LedState::LED_BLINK_FAST;
     } else {
-        green = LedState::LED_BLINK_SLOW;
+        green = LedState::LED_OFF;
     }
 
     LedState yellow;
-    if (gps_mute && wifi_lost) {
+    if (gps_mute || wifi_lost) {
         yellow = LedState::LED_ON;
-    } else if (gps_mute || wifi_lost) {
+    } else if (!gps_heard) {
+        yellow = LedState::LED_BLINK_SLOW;
+    } else if (!has_fix) {
         yellow = LedState::LED_BLINK_FAST;
     } else {
         yellow = LedState::LED_OFF;
@@ -300,7 +317,7 @@ void loop() {
         // Update GPS manager
         gpsManager.update();
         
-        // Check if GPS is now ready (isReady() is the full DGAC criteria: fix,
+        // Check if GPS is now ready (isReady() is the quality criteria: fix,
         // 4+ satellites, HDOP below 5.0 and a valid altitude), then wait for the fix to settle
         // before taking the home position
         if (!_gps_ready) {
@@ -344,9 +361,14 @@ void loop() {
             }
         }
         
-        // Update beacon manager with latest GPS data
+        // Update beacon manager with latest GPS data. A mute GPS leaves its last fix flag set,
+        // so it is cleared here: the beacon then sends the last position, frozen.
         if (_gps_ready) {
-            beaconManager.updateGpsData(gpsManager.getData());
+            GpsData beacon_data = gpsManager.getData();
+            if (isGpsMute()) {
+                beacon_data.has_fix = false;
+            }
+            beaconManager.updateGpsData(beacon_data);
         }
     }
     
@@ -354,7 +376,7 @@ void loop() {
     // Send beacon frames
     // -------------------------------------------------------------------------------------------
     // sendBeaconFrame() applies the DGAC conditions itself through shouldSend():
-    // initialization, home position, GPS validity and the 3s / 30m period. No extra
+    // initialization, home position, a known position and the 3s / 30m period. No extra
     // guard here, so the very first frame can go out.
     if (_gps_ready) {
         beaconManager.sendBeaconFrame();

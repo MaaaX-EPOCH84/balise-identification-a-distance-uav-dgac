@@ -89,7 +89,7 @@ public:
 
     /**
      * Check if GPS has enough satellites for a valid fix
-     * DGAC requires at least 4 satellites
+     * A quality threshold, not a regulatory one: at least 4 satellites
      * 
      * @return true if enough satellites are available
      */

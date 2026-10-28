@@ -84,7 +84,9 @@ public:
 
     /**
      * Update beacon with new GPS data
-     * Call this when new GPS data is available
+     * Call this when new GPS data is available. Without a live fix — fix lost, or the caller
+     * clearing has_fix because the GPS went mute — the last live position is fed to the frame
+     * instead, with a zero ground speed and the route held.
      * 
      * @param gps_data The GPS data
      */
@@ -124,11 +126,19 @@ public:
     // -------------------------------------------------------------------------------------------
 
     /**
-     * Check if beacon is ready to send
+     * Check if beacon is ready to send: initialized, home set and a position known. A lost fix
+     * does not make it unready, the last position is sent instead.
      * 
      * @return true if beacon is ready
      */
     bool isReady() const;
+
+    /**
+     * Check if the position sent is the last live one, held because the fix is gone
+     *
+     * @return true while the position is frozen
+     */
+    bool isPositionFrozen() const { return _position_frozen; }
 
     /**
      * Check if home position is set
@@ -160,13 +170,13 @@ public:
 
     // -------------------------------------------------------------------------------------------
     // GPS STATUS CHECKS
-    // These check if GPS data meets DGAC requirements
+    // Fix quality report, for diagnosis: none of it gates the emission
     // -------------------------------------------------------------------------------------------
 
     /**
-     * Check if GPS data is valid for beacon transmission
+     * Check if the last GPS data has a good quality fix
      * 
-     * @return true if GPS data meets DGAC requirements
+     * @return true with a fix, 4+ satellites, HDOP up to 5.0 and an altitude
      */
     bool isGpsValid() const;
 
@@ -214,6 +224,7 @@ private:
 
     DroneIdFr _drone_id_fr;
     GpsData _last_gps_data;
+    GpsData _last_live_gps_data;     // Last data with a fix, sent again while the fix is lost
     
     // Beacon frame identity
     char _ssid[33] = {0};
@@ -237,18 +248,29 @@ private:
     bool _home_set = false;
     double _home_altitude = 0.0;
     bool _heading_tracking = false;  // Speed high enough for the course to mean something
+    bool _position_known = false;    // A live position was fed to the frame at least once
+    bool _position_frozen = false;   // The frame holds the last live position, fix lost
 
     // -------------------------------------------------------------------------------------------
     // INTERNAL FUNCTIONS
     // -------------------------------------------------------------------------------------------
 
     /**
-     * Check if GPS data meets all DGAC requirements
+     * Check if GPS data has a good quality fix. The order of 27 December 2019 sets no such
+     * threshold: this is a quality report, not an emission condition.
      * 
      * @param gps_data The GPS data to check
-     * @return true if data meets all requirements
+     * @return true with a fix, 4+ satellites, HDOP up to 5.0 and an altitude
      */
     bool checkGpsDataValidity(const GpsData& gps_data) const;
+
+    /**
+     * Check if GPS data carries a live position: a fix and non null coordinates
+     *
+     * @param gps_data The GPS data to check
+     * @return true if the position can be sent as current
+     */
+    static bool hasLivePosition(const GpsData& gps_data);
 
     /**
      * Write the 802.11 beacon header — management frame, addresses, fixed parameters,

@@ -38,7 +38,10 @@ BeaconManager::BeaconManager() : _drone_id_fr() {
     _frame_count = 0;
     _last_send_ms = 0;
     _home_altitude = 0.0;
+    _position_known = false;
+    _position_frozen = false;
     _last_gps_data.reset();
+    _last_live_gps_data.reset();
     _last_send_position.latitude = 0.0;
     _last_send_position.longitude = 0.0;
 }
@@ -104,9 +107,23 @@ void BeaconManager::updateGpsData(const GpsData& gps_data) {
         setHomePosition(gps_data.position.latitude, gps_data.position.longitude, gps_data.altitude);
     }
     
-    // Update DroneIdFr with new data
-    if (_home_set) {
+    if (!_home_set) {
+        return;
+    }
+
+    // The order of 27 December 2019 wants the frame sent from takeoff to landing, and sets no
+    // accuracy threshold. Without a live fix the last live position is sent again, at zero
+    // ground speed so the 30 m prediction stays put, with the route held by the same speed.
+    if (hasLivePosition(gps_data)) {
+        _last_live_gps_data = gps_data;
+        _position_known = true;
+        _position_frozen = false;
         updateDroneIdFr(gps_data);
+    } else if (_position_known) {
+        _position_frozen = true;
+        GpsData frozen = _last_live_gps_data;
+        frozen.speed = 0.0;
+        updateDroneIdFr(frozen);
     }
 }
 
@@ -240,8 +257,9 @@ bool BeaconManager::shouldSend() {
         return false;
     }
     
-    // Check if GPS data is valid
-    if (!checkGpsDataValidity(_last_gps_data)) {
+    // A position must have been fed once. Its quality does not gate the emission: a lost fix
+    // sends the last position rather than nothing
+    if (!_position_known) {
         return false;
     }
     
@@ -257,7 +275,7 @@ bool BeaconManager::isReady() const {
     // Ability to transmit right now, regardless of frames already sent: keying this on
     // _frame_count deadlocked the beacon, as the counter is only incremented by a send
     // that the caller in turn gated on isReady().
-    return _initialized && _home_set && checkGpsDataValidity(_last_gps_data);
+    return _initialized && _home_set && _position_known;
 }
 
 bool BeaconManager::hasHomeSet() const {
@@ -304,7 +322,10 @@ void BeaconManager::reset() {
     _home_set = false;
     _home_altitude = 0.0;
     _heading_tracking = false;
+    _position_known = false;
+    _position_frozen = false;
     _last_gps_data.reset();
+    _last_live_gps_data.reset();
     _last_send_position.latitude = 0.0;
     _last_send_position.longitude = 0.0;
 }
@@ -312,10 +333,11 @@ void BeaconManager::reset() {
 String BeaconManager::getStateString() const {
     char buffer[128];
     snprintf(buffer, sizeof(buffer),
-        "Beacon: %s, Frames: %u, Home: %s, GPS: %s",
+        "Beacon: %s, Frames: %u, Home: %s, Position: %s, GPS: %s",
         _initialized ? "INIT" : "NOT INIT",
         _frame_count,
         _home_set ? "SET" : "NOT SET",
+        !_position_known ? "NONE" : (_position_frozen ? "FROZEN" : "LIVE"),
         getGpsStatusString().c_str()
     );
     return String(buffer);
@@ -336,7 +358,7 @@ bool BeaconManager::checkGpsDataValidity(const GpsData& gps_data) const {
         return false;
     }
     
-    // DGAC requirements:
+    // Quality thresholds, not regulatory ones:
     // - At least 4 satellites
     if (gps_data.satellites < 4) {
         return false;
@@ -353,6 +375,11 @@ bool BeaconManager::checkGpsDataValidity(const GpsData& gps_data) const {
     }
     
     return true;
+}
+
+bool BeaconManager::hasLivePosition(const GpsData& gps_data) {
+    return gps_data.has_fix &&
+           gps_data.position.latitude != 0.0 && gps_data.position.longitude != 0.0;
 }
 
 void BeaconManager::updateDroneIdFr(const GpsData& gps_data) {
