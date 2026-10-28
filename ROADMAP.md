@@ -6,7 +6,7 @@ Statut : ⬜ à faire · 🔶 en cours · ✅ fait · ❌ annulé
 |---|---|---|---|---|
 | 1 | E1 | Cœur minimal | GPS + trame balise DGAC, validation sur USB | 🔶 |
 | 2 | E5 | Assemblage matériel | Alimentation, signalisation, antenne et boîtier | 🔶 |
-| 3 | E6 | Signalisation et énergie | Mesure de batterie et alerte, côté firmware | 🔶 |
+| 3 | E6 | Signalisation, énergie et conformité de l'émission | Mesure de batterie et alerte, conformité de l'émission, côté firmware | 🔶 |
 | 4 | E2 | Portail de configuration | Serveur web et DNS captif dans `main.cpp` (Phase 2) | ⬜ |
 | 5 | E3 | Conformité réglementaire WiFi | Pays et puissance via `esp_wifi_set_country()` | ⬜ |
 | 6 | E4 | Extension multi-cibles | Environnements `esp32`, `esp32-s3`, `esp8266` | ⬜ |
@@ -131,7 +131,7 @@ Réglages relevés : `PROG1` porte 2 kΩ d'usine, soit exactement les 500 mA vis
 **Retenu** : enfermer la carte, antenne dehors — l'émetteur garde sa charge normale. **Écarté** : débrancher l'antenne de la balise, interdit puisqu'émettre à 20 dBm sans charge use l'étage de puissance ; enfermer l'antenne seule, qui la désaccorde et renvoie de la puissance vers l'émetteur ; l'ohmmètre sur la piste RF, que condensateurs série et selfs à la masse rendent illisible. **Réserves** : marge de 10 dB seulement, la boîte fuyant par sa fente ; le déplacement du récepteur pour le contrôle rend ces 10 dB approximatifs. Ni l'une ni l'autre ne renverse le résultat.
 2.6 🔶 [P12] Dessiner et imprimer le boîtier — PETG non chargé en carbone, ouvertures USB, interrupteur, bouton et LED, antenne GPS vers le ciel
 
-## Étape 3 — Signalisation et supervision d'énergie  [E6]
+## Étape 3 — Signalisation, énergie et conformité de l'émission  [E6]
 
 Volet firmware des décisions matérielles de l'étape 2. Règle de conformité qui encadre tout ce qui suit : la balise doit émettre pendant tout le vol, donc une batterie faible se signale mais n'interrompt jamais l'émission.
 
@@ -171,12 +171,14 @@ Annulé plutôt que supprimé, pour garder la trace du découpage initial et de 
 **Constaté** : sous blindage, le fix affaibli dérive d'environ 17 m dans les 12 s avant de lâcher ; c'est cette dernière position, déjà fausse, qui est figée. Le compteur `refused` de `getTxStatsString()` compte aussi chaque tour où les 3 s ne sont pas écoulées : il ne mesure pas un refus d'émission.
 
 **Hors périmètre, relevé ici** : la balise émet sur le canal 1 alors que l'arrêté impose le canal 6 — inscrit comme `P26` ; et la cadence attend 3 000 ms plus un tour de boucle, donc dépasse légèrement les « au plus 3 secondes » (3,1 s mesuré le 25 octobre) — le sketch de référence anticipe d'une période GPS ; point à inscrire, non tranché.
-3.5 ⬜ [P26] Émettre sur le canal WiFi 6, imposé par l'arrêté du 27 décembre 2019 (article 2, I, 9°) à une balise non native de l'aéronef ; aujourd'hui `WIFI_AP_CHANNEL` vaut 1 dans `main.cpp`. Passer le récepteur de banc (`tools/recepteur/`) sur le canal 6 en même temps. Fait quand le récepteur de banc, réglé sur le canal 6, reçoit les trames à la cadence de 3 s, et qu'il ne reçoit plus rien sur le canal 1
-3.6 ⬜ [P16] Implémenter l'alerte de batterie faible : seuil autour de 3,4 V, signalement par la LED jaune en double éclat (choisi le 28 octobre), sans jamais interrompre l'émission
-3.7 ⬜ [P17] Mesurer l'autonomie réelle et la confronter à l'estimation de 5 à 8 heures
-3.8 ⬜ [P24] Journal d'événements en NVS : tampon circulaire de 64 entrées de 8 octets (temps depuis le démarrage, numéro de démarrage, type, valeur), écrit aux transitions seulement et coalescé pour limiter l'usure. Événements : fix acquis et perdu (satellites), GPS muet et revenu, WiFi KO et revenu (dernier code radio), batterie faible (tension, avec P16), et cause de chaque redémarrage (`esp_reset_reason()`). Affichage sur le port série au démarrage. Fait quand une coupure d'alimentation, un GPS débranché et un fix perdu y sont retrouvés après redémarrage, et que le tampon ne dépasse jamais sa taille après plus de 64 événements
+3.5 🔶 [P26] Émettre sur le canal WiFi 6, imposé par l'arrêté du 27 décembre 2019 (article 2, I, 9°) à une balise non native de l'aéronef ; aujourd'hui `WIFI_AP_CHANNEL` vaut 1 dans `main.cpp`. Passer le récepteur de banc (`tools/recepteur/`) sur le canal 6 en même temps. Fait quand le récepteur de banc, réglé sur le canal 6, reçoit les trames à la cadence de 3 s, et qu'il ne reçoit plus rien sur le canal 1
+3.6 ⬜ [P27] Tenir la cadence à au plus 3 s entre deux envois, comme l'exige l'arrêté (article 2, I, 9°) : aujourd'hui l'envoi part à 3 000 ms plus un tour de boucle, soit jusqu'à 3,1 s mesurées le 25 octobre ; anticiper d'une marge, à la manière du sketch de référence qui avance d'une période GPS (viser ~2,8 s), dans `DroneIdFr`. Fait quand, sur au moins 100 trames, aucun intervalle ne dépasse 3,0 s, mesuré par les horodatages de la balise elle-même (le récepteur arrondit à la seconde)
+3.7 ⬜ [P16] Implémenter l'alerte de batterie faible : seuil autour de 3,4 V, signalement par la LED jaune en double éclat (choisi le 28 octobre) — motif à ajouter à `LedManager`, aucun `LedState` ne le fait aujourd'hui —, et décider ce qui l'emporte entre batterie faible et jaune fixe (GPS muet ou WiFi perdu). Sans jamais interrompre l'émission
+3.8 ⬜ [P17] Mesurer l'autonomie réelle et la confronter à l'estimation de 5 à 8 heures
+3.9 ⬜ [P24] Journal d'événements en NVS : tampon circulaire de 64 entrées de 8 octets (temps depuis le démarrage, numéro de démarrage, type, valeur), écrit aux transitions seulement et coalescé pour limiter l'usure. Événements : fix acquis et perdu (satellites), GPS muet et revenu, WiFi KO et revenu (dernier code radio), batterie faible (tension, avec P16), et cause de chaque redémarrage (`esp_reset_reason()`). Affichage sur le port série au démarrage. Fait quand une coupure d'alimentation, un GPS débranché et un fix perdu y sont retrouvés après redémarrage, et que le tampon ne dépasse jamais sa taille après plus de 64 événements
 
 **Écarté** : l'`EEPROM` du projet, qui réécrit une page entière à chaque écriture ; un journal à historique long, seule la cause récente compte ; l'écriture à chaque trame.
+3.10 ⬜ [P28] Écrire la notice d'utilisation dans le `README` : table des LED (verte = ce qui est émis, jaune = ce qui ne va pas, rouge = alimentation), règle « ne pas décoller tant que la verte n'est pas fixe » (conséquence de `P25`), précautions USB, interrupteur et charge, lecture de l'identifiant au démarrage sur le port série. Fait quand la notice est commitée et que chaque état de LED qu'elle décrit a été observé sur matériel
 
 ## Étape 4 — Portail de configuration (Phase 2)  [E2]
 
