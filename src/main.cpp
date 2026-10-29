@@ -45,7 +45,7 @@
 #define GPS_REFRESH_RATE  1    // 1 Hz
 
 // WiFi Configuration
-#define WIFI_AP_CHANNEL   1
+#define WIFI_AP_CHANNEL   6    // canal imposé par l'arrêté du 27/12/2019 (art. 2, I, 9°)
 
 // Timing Configuration
 #define GPS_UPDATE_INTERVAL_MS   100

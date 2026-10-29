@@ -4,7 +4,7 @@ Statut : ⬜ à faire · 🔶 en cours · ✅ fait · ❌ annulé
 
 | # | id | Étape | Contenu | État |
 |---|---|---|---|---|
-| 1 | E1 | Cœur minimal | GPS + trame balise DGAC, validation sur USB | 🔶 |
+| 1 | E1 | Cœur minimal | GPS + trame balise DGAC, validation sur USB | ✅ |
 | 2 | E5 | Assemblage matériel | Alimentation, signalisation, antenne et boîtier | 🔶 |
 | 3 | E6 | Signalisation, énergie et conformité de l'émission | Mesure de batterie et alerte, conformité de l'émission, côté firmware | 🔶 |
 | 4 | E2 | Portail de configuration | Serveur web et DNS captif dans `main.cpp` (Phase 2) | ⬜ |
@@ -171,7 +171,12 @@ Annulé plutôt que supprimé, pour garder la trace du découpage initial et de 
 **Constaté** : sous blindage, le fix affaibli dérive d'environ 17 m dans les 12 s avant de lâcher ; c'est cette dernière position, déjà fausse, qui est figée. Le compteur `refused` de `getTxStatsString()` compte aussi chaque tour où les 3 s ne sont pas écoulées : il ne mesure pas un refus d'émission.
 
 **Hors périmètre, relevé ici** : la balise émet sur le canal 1 alors que l'arrêté impose le canal 6 — inscrit comme `P26` ; et la cadence attend 3 000 ms plus un tour de boucle, donc dépasse légèrement les « au plus 3 secondes » (3,1 s mesuré le 25 octobre) — le sketch de référence anticipe d'une période GPS ; point à inscrire, non tranché.
-3.5 🔶 [P26] Émettre sur le canal WiFi 6, imposé par l'arrêté du 27 décembre 2019 (article 2, I, 9°) à une balise non native de l'aéronef ; aujourd'hui `WIFI_AP_CHANNEL` vaut 1 dans `main.cpp`. Passer le récepteur de banc (`tools/recepteur/`) sur le canal 6 en même temps. Fait quand le récepteur de banc, réglé sur le canal 6, reçoit les trames à la cadence de 3 s, et qu'il ne reçoit plus rien sur le canal 1
+3.5 ✅ [P26] Émettre sur le canal WiFi 6, imposé par l'arrêté du 27 décembre 2019 (article 2, I, 9°) à une balise non native de l'aéronef ; aujourd'hui `WIFI_AP_CHANNEL` vaut 1 dans `main.cpp`. Passer le récepteur de banc (`tools/recepteur/`) sur le canal 6 en même temps. Fait quand le récepteur de banc, réglé sur le canal 6, reçoit les trames à la cadence de 3 s, et qu'il ne reçoit plus rien sur le canal 1
+
+**Retenu** (30 octobre 2026) : `WIFI_AP_CHANNEL` vaut 6 dans `main.cpp` (une seule constante, qui règle le canal réel de l'AP par `startBeaconMode()` et le DS Parameter Set de la trame par `BeaconManager::initialize()`) ; `CHANNEL` vaut 6 dans `tools/recepteur/src/main.cpp`. Aucune autre modification : les valeurs par défaut à 1 de `wifi_manager` ne sont pas utilisées.
+
+**Attesté sur matériel** le 30 octobre (balise sur USB, interrupteur sur OFF, récepteur de banc à ~30 cm) : récepteur sur le canal 6, trames DGAC reçues à ~3 s (compteur de balises AP 86 → 116 → 146, soit 30 × 102 ms), −16/−17 dBm, identifiant et coordonnées corrects ; récepteur remis sur le canal 1, 30 s d'écoute (264 balises voisines), **0 trame DGAC**. Un premier essai négatif, qui n'avait affiché aucune ligne, n'a pas été compté. Récepteur laissé sur le canal 6.
+
 3.6 ⬜ [P27] Tenir la cadence à au plus 3 s entre deux envois, comme l'exige l'arrêté (article 2, I, 9°) : aujourd'hui l'envoi part à 3 000 ms plus un tour de boucle, soit jusqu'à 3,1 s mesurées le 25 octobre ; anticiper d'une marge, à la manière du sketch de référence qui avance d'une période GPS (viser ~2,8 s), dans `DroneIdFr`. Fait quand, sur au moins 100 trames, aucun intervalle ne dépasse 3,0 s, mesuré par les horodatages de la balise elle-même (le récepteur arrondit à la seconde)
 3.7 ⬜ [P16] Implémenter l'alerte de batterie faible : seuil autour de 3,4 V, signalement par la LED jaune en double éclat (choisi le 28 octobre) — motif à ajouter à `LedManager`, aucun `LedState` ne le fait aujourd'hui —, et décider ce qui l'emporte entre batterie faible et jaune fixe (GPS muet ou WiFi perdu). Sans jamais interrompre l'émission
 3.8 ⬜ [P17] Mesurer l'autonomie réelle et la confronter à l'estimation de 5 à 8 heures
