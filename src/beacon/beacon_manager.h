@@ -236,6 +236,8 @@ private:
     uint32_t _empty_frame_count = 0;
     uint32_t _tx_error_count = 0;
     uint32_t _consecutive_tx_errors = 0;
+    uint32_t _interval_max_ms = 0;     // Longest gap between two sent frames
+    uint32_t _interval_over_count = 0; // Gaps above the 3 s limit
     uint16_t _last_frame_size = 0;
 
     // Beacon statistics

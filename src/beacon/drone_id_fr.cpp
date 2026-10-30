@@ -342,9 +342,9 @@ void DroneIdFr::setLastSend() {
 // ================================================================================================
 
 bool DroneIdFr::hasPassTime() const {
-    // Check if 3 seconds have passed since last send
+    // The 3 s limit is regulatory; sending a margin early keeps the real interval under it.
     // Use millis() for ESP32-C3 compatibility
-    return hasElapsed(_last_send_ms, FRAME_TIME_LIMIT_MS);
+    return hasElapsed(_last_send_ms, FRAME_TIME_LIMIT_MS - FRAME_TIME_MARGIN_MS);
 }
 
 bool DroneIdFr::hasPassDistance() const {

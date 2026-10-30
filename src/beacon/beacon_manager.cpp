@@ -225,8 +225,18 @@ bool BeaconManager::sendBeaconFrame() {
     
     if (sent) {
         _consecutive_tx_errors = 0;
+        const uint32_t now_ms = millis();
+        if (_frame_count > 0) {
+            const uint32_t interval_ms = now_ms - _last_send_ms;
+            if (interval_ms > _interval_max_ms) {
+                _interval_max_ms = interval_ms;
+            }
+            if (interval_ms > BEACON_FRAME_TIME_LIMIT_MS) {
+                _interval_over_count++;
+            }
+        }
         _frame_count++;
-        _last_send_ms = millis();
+        _last_send_ms = now_ms;
         _last_send_position = _last_gps_data.position;
         
         // Update DroneIdFr that we sent a frame
@@ -245,7 +255,10 @@ String BeaconManager::getTxStatsString() const {
            " empty=" + String(_empty_frame_count) +
            " txerr=" + String(_tx_error_count) +
            " lastsize=" + String(_last_frame_size) +
-           " lasterr=" + String(getLastBeaconTxError());
+           " lasterr=" + String(getLastBeaconTxError()) +
+           " frames=" + String(_frame_count) +
+           " maxgap=" + String(_interval_max_ms) +
+           " over=" + String(_interval_over_count);
 }
 
 bool BeaconManager::shouldSend() {

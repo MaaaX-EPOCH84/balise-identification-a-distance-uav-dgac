@@ -259,6 +259,10 @@ private:
     // Maximum time between two beacon frames: 3 seconds
     static constexpr uint32_t FRAME_TIME_LIMIT_MS = 3000;
 
+    // The period is armed this much before the limit, so the loop pass and the radio latency
+    // that follow cannot push two frames more than 3 s apart
+    static constexpr uint32_t FRAME_TIME_MARGIN_MS = 200;
+
     // Maximum distance between two beacon frames: 30 meters
     static constexpr double FRAME_DISTANCE_LIMIT_M = 30.0;
 
