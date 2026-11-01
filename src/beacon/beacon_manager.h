@@ -121,6 +121,19 @@ public:
      */
     bool shouldSend();
 
+#ifdef TELEMETRIE_BATTERIE
+    /**
+     * Send a bench telemetry frame: the beacon header followed by one vendor-specific element.
+     * Bench builds only. The DGAC frame, its timing and its statistics are left untouched; only
+     * getLastBeaconTxError(), shared by every frame sent, may report this one.
+     *
+     * @param element Complete element, tag 0xDD and length included
+     * @param element_len Size of the element in bytes
+     * @return true if the radio accepted the frame
+     */
+    bool sendVendorFrame(const uint8_t* element, uint8_t element_len);
+#endif
+
     // -------------------------------------------------------------------------------------------
     // STATUS AND STATISTICS
     // -------------------------------------------------------------------------------------------
@@ -153,6 +166,20 @@ public:
      * @return Frame count
      */
     uint32_t getFrameCount() const { return _frame_count; }
+
+    /**
+     * Get the longest gap measured between two sent frames
+     *
+     * @return Gap in milliseconds
+     */
+    uint32_t getMaxIntervalMs() const { return _interval_max_ms; }
+
+    /**
+     * Get the number of gaps above the 3 s limit
+     *
+     * @return Gap count
+     */
+    uint32_t getOverIntervalCount() const { return _interval_over_count; }
 
     /**
      * Get the last send time

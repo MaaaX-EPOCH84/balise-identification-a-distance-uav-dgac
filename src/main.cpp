@@ -35,6 +35,9 @@
 #include "hardware/battery_monitor.h"
 #include "network/wifi_manager.h"
 #include "utils/debug_utils.h"
+#ifdef TELEMETRIE_BATTERIE
+#include "beacon/bench_telemetry.h"
+#endif
 
 // ================================================================================================
 // DEFINES
@@ -164,6 +167,11 @@ void setup() {
     // Initialize battery measurement
     // -------------------------------------------------------------------------------------------
     batteryMonitor.begin(PIN_BATTERY);
+#ifdef TELEMETRIE_BATTERIE
+    benchTelemetry.begin();
+    DEBUG_INFO("Bench telemetry ON (bench build, never fly it): boot " +
+               String(benchTelemetry.getBootCount()));
+#endif
     
     // -------------------------------------------------------------------------------------------
     // Initialize GPS
@@ -381,6 +389,13 @@ void loop() {
     if (_gps_ready) {
         beaconManager.sendBeaconFrame();
     }
+
+#ifdef TELEMETRIE_BATTERIE
+    // Bench build only: battery figures in a frame of their own, from boot on, fix or not
+    if (_wifi_ready) {
+        benchTelemetry.update(gpsManager.getData().has_fix && !isGpsMute());
+    }
+#endif
     
     // -------------------------------------------------------------------------------------------
     // Periodic status update (every 5 seconds)
@@ -399,6 +414,10 @@ void loop() {
         }
         DEBUG_INFO(beaconManager.getStateString());
         DEBUG_INFO(beaconManager.getTxStatsString());
+#ifdef TELEMETRIE_BATTERIE
+        DEBUG_INFO("Bench telemetry: sent=" + String(benchTelemetry.getSentCount()) +
+                   " txerr=" + String(benchTelemetry.getErrorCount()));
+#endif
 
         // GPS link diagnostics: separates a dead RX line (bytes stuck at 0) from
         // sentences that arrive but get rejected, and from a receiver still searching.

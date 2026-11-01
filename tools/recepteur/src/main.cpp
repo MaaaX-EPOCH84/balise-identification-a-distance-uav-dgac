@@ -25,6 +25,10 @@
 // The decoding follows the order's annex, not the beacon's own code, so that a mistake in the
 // encoder shows up instead of being mirrored. Types 12 to 200 are reserved by the order and are
 // reported as such.
+//
+// It also decodes the bench telemetry of the beacon's esp32-c3-telemetrie build (OUI 02:42:49,
+// type 1, layout in src/beacon/bench_telemetry.h) and prints each one as a single "TLM" line,
+// meant to be logged by tools/recepteur/consigne.py.
 // ================================================================================================
 
 #include <Arduino.h>
@@ -49,6 +53,13 @@ static uint8_t g_src[6];
 static int8_t g_rssi = 0;
 static volatile uint32_t g_beacons = 0;
 static volatile uint32_t g_dgac = 0;
+
+static volatile bool g_tlm_ready = false;
+static uint8_t g_tlm[64];
+static uint8_t g_tlm_len = 0;
+static int8_t g_tlm_rssi = 0;
+static volatile uint32_t g_tlm_count = 0;
+static volatile uint32_t g_tlm_missed = 0;
 
 // ================================================================================================
 // CAPTURE
@@ -79,6 +90,19 @@ static void sniffer(void* buf, wifi_promiscuous_pkt_type_t type) {
                 g_rssi = pkt->rx_ctrl.rssi;
                 g_ready = true;
             }
+            return;
+        }
+        if (tag == 0xDD && l >= 4 && p[i + 2] == 0x02 && p[i + 3] == 0x42 &&
+            p[i + 4] == 0x49 && p[i + 5] == 0x01) {
+            g_tlm_count++;
+            if (g_tlm_ready || l - 4 > static_cast<int>(sizeof(g_tlm))) {
+                g_tlm_missed++;  // previous one not printed yet
+                return;
+            }
+            memcpy(g_tlm, p + i + 6, l - 4);
+            g_tlm_len = l - 4;
+            g_tlm_rssi = pkt->rx_ctrl.rssi;
+            g_tlm_ready = true;
             return;
         }
         i += 2 + l;
@@ -141,6 +165,27 @@ static void decode() {
     }
 }
 
+// Bench telemetry, version 1: one line, "key=value" fields, easy to log and to parse
+static uint32_t readU(const uint8_t* v, uint8_t n) {
+    uint32_t u = 0;
+    for (uint8_t k = 0; k < n; k++) u = (u << 8) | v[k];
+    return u;
+}
+
+static void decodeTelemetry() {
+    const uint8_t* v = g_tlm;
+    if (g_tlm_len < 1 || v[0] != 1 || g_tlm_len < 26) {
+        Serial.printf("TLM unsupported version %u (%u bytes)\n", g_tlm_len ? v[0] : 0, g_tlm_len);
+        return;
+    }
+    const uint8_t flags = v[25];
+    Serial.printf("TLM seq=%u boot=%u up=%u cell=%u pin=%u frames=%u maxgap=%u over=%u "
+                  "fix=%u home=%u frozen=%u rssi=%d\n",
+                  readU(v + 1, 4), readU(v + 5, 4), readU(v + 9, 4), readU(v + 13, 2),
+                  readU(v + 15, 2), readU(v + 17, 4), readU(v + 21, 2), readU(v + 23, 2),
+                  flags & 1, (flags >> 1) & 1, (flags >> 2) & 1, g_tlm_rssi);
+}
+
 // ================================================================================================
 // SETUP / LOOP
 // ================================================================================================
@@ -168,9 +213,15 @@ void loop() {
         g_ready = false;
     }
 
+    if (g_tlm_ready) {
+        decodeTelemetry();
+        g_tlm_ready = false;
+    }
+
     if (millis() - last_summary > SUMMARY_PERIOD_MS) {
         last_summary = millis();
-        Serial.printf("[%lus] beacons %u, DGAC frames %u\n", millis() / 1000, g_beacons, g_dgac);
+        Serial.printf("[%lus] beacons %u, DGAC frames %u, telemetry %u (missed %u)\n",
+                      millis() / 1000, g_beacons, g_dgac, g_tlm_count, g_tlm_missed);
     }
 
     delay(10);

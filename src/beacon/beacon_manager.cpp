@@ -200,6 +200,23 @@ uint16_t BeaconManager::generateBeaconFrame(uint8_t* buffer, uint16_t buffer_siz
     return _drone_id_fr.generateBeaconFrame(buffer, header_size);
 }
 
+#ifdef TELEMETRIE_BATTERIE
+bool BeaconManager::sendVendorFrame(const uint8_t* element, uint8_t element_len) {
+    if (!_initialized || element == nullptr || element_len == 0) {
+        return false;
+    }
+
+    uint8_t frame_buffer[128];
+    const uint16_t header_size = buildBeaconHeader(frame_buffer);
+    if (header_size == 0 || header_size + element_len > sizeof(frame_buffer)) {
+        return false;
+    }
+    memcpy(frame_buffer + header_size, element, element_len);
+
+    return ::sendBeaconFrame(frame_buffer, header_size + element_len);
+}
+#endif
+
 bool BeaconManager::sendBeaconFrame() {
     // Check if we should send
     if (!shouldSend()) {
