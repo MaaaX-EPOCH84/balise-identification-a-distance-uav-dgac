@@ -211,6 +211,9 @@ void LedManager::update() {
         case LedState::LED_PULSE:
             updatePulse();
             break;
+        case LedState::LED_BATTERY_LOW:
+            updateBatteryLow();
+            break;
         case LedState::LED_MORSE_OK:
         case LedState::LED_MORSE_ERROR:
         case LedState::LED_MORSEcustom:
@@ -242,6 +245,11 @@ void LedManager::update() {
             case LedState::LED_PULSE:
                 _pulse_start_time = millis();
                 setPin(false);
+                break;
+            case LedState::LED_BATTERY_LOW:
+                _pattern_step = 0;
+                _pattern_step_start = millis();
+                setPin(true);
                 break;
             case LedState::LED_MORSE_OK:
             case LedState::LED_MORSE_ERROR:
@@ -314,6 +322,23 @@ void LedManager::updatePulse() {
     
     uint8_t duty = calculatePulseDuty();
     setPwm(duty);
+}
+
+// Durations in ms, alternating lit and dark: short, short, long, then a pause that marks the
+// start of the cycle. Two even blinks would read as a slow blink that stutters; three different
+// durations give a rhythm that cannot be mistaken for the slow or fast blink.
+static const uint16_t BATTERY_LOW_PATTERN_MS[] = {100, 150, 100, 150, 500, 1000};
+static const uint8_t BATTERY_LOW_PATTERN_STEPS =
+    sizeof(BATTERY_LOW_PATTERN_MS) / sizeof(BATTERY_LOW_PATTERN_MS[0]);
+
+void LedManager::updateBatteryLow() {
+    uint32_t current_time = millis();
+
+    if (current_time - _pattern_step_start >= BATTERY_LOW_PATTERN_MS[_pattern_step]) {
+        _pattern_step = (_pattern_step + 1) % BATTERY_LOW_PATTERN_STEPS;
+        _pattern_step_start = current_time;
+        setPin((_pattern_step % 2) == 0);
+    }
 }
 
 void LedManager::updateMorse() {

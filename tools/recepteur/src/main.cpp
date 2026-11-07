@@ -180,10 +180,10 @@ static void decodeTelemetry() {
     }
     const uint8_t flags = v[25];
     Serial.printf("TLM seq=%u boot=%u up=%u cell=%u pin=%u frames=%u maxgap=%u over=%u "
-                  "fix=%u home=%u frozen=%u rssi=%d\n",
+                  "fix=%u home=%u frozen=%u low=%u rssi=%d\n",
                   readU(v + 1, 4), readU(v + 5, 4), readU(v + 9, 4), readU(v + 13, 2),
                   readU(v + 15, 2), readU(v + 17, 4), readU(v + 21, 2), readU(v + 23, 2),
-                  flags & 1, (flags >> 1) & 1, (flags >> 2) & 1, g_tlm_rssi);
+                  flags & 1, (flags >> 1) & 1, (flags >> 2) & 1, (flags >> 3) & 1, g_tlm_rssi);
 }
 
 // ================================================================================================

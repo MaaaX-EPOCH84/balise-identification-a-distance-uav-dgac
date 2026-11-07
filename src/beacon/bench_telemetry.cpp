@@ -107,6 +107,7 @@ void BenchTelemetry::update(bool live_fix) {
     if (live_fix) flags |= 0x01;
     if (beaconManager.hasHomeSet()) flags |= 0x02;
     if (beaconManager.isPositionFrozen()) flags |= 0x04;
+    if (batteryMonitor.isLow()) flags |= 0x08;
     element[i++] = flags;
 
     element[1] = static_cast<uint8_t>(i - 2);

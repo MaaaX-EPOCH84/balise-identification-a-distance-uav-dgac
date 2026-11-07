@@ -36,7 +36,7 @@ import time
 from pathlib import Path
 
 FIELDS = ["seq", "boot", "up", "cell", "pin", "frames", "maxgap", "over",
-          "fix", "home", "frozen", "rssi"]
+          "fix", "home", "frozen", "low", "rssi"]
 
 
 def open_port(port: str) -> int:
@@ -51,6 +51,22 @@ def open_port(port: str) -> int:
     attrs[6][termios.VTIME] = 10                                # read returns after 1 s at most
     termios.tcsetattr(fd, termios.TCSANOW, attrs)
     return fd
+
+
+SILENCE_REOPEN_S = 30      # the beacon sends every ~10 s: this long without a byte means a dead port
+
+
+def reopen_port(port: str, fd: int) -> int:
+    """Close a port that went silent and open it again, retrying until it comes back."""
+    try:
+        os.close(fd)
+    except OSError:
+        pass
+    while True:
+        try:
+            return open_port(port)
+        except OSError:
+            time.sleep(2)
 
 
 def parse(line: str) -> dict[str, int] | None:
@@ -79,6 +95,7 @@ def main() -> int:
     rows = 0
     last: dict[str, int] | None = None
     pending = b""
+    last_data = time.monotonic()
 
     with args.output.open("a", encoding="utf-8", newline="") as out:
         writer = csv.writer(out)
@@ -87,9 +104,18 @@ def main() -> int:
             out.flush()
         try:
             while not args.duree or time.monotonic() - start < args.duree:
-                chunk = os.read(fd, 512)
+                try:
+                    chunk = os.read(fd, 512)
+                except OSError:
+                    chunk = b""
                 if not chunk:
+                    if time.monotonic() - last_data >= SILENCE_REOPEN_S:
+                        logging.warning("no data for %d s, reopening the port", SILENCE_REOPEN_S)
+                        fd = reopen_port(args.port, fd)
+                        pending = b""
+                        last_data = time.monotonic()
                     continue
+                last_data = time.monotonic()
                 pending += chunk
                 *lines, pending = pending.split(b"\n")
                 for raw in lines:

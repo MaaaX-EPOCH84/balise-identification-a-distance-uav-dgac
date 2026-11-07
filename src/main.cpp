@@ -277,8 +277,11 @@ static void updateIndicators() {
         green = LedState::LED_OFF;
     }
 
+    // Low battery outranks every other state: it means landing within about 10 minutes
     LedState yellow;
-    if (gps_mute || wifi_lost) {
+    if (batteryMonitor.isLow()) {
+        yellow = LedState::LED_BATTERY_LOW;
+    } else if (gps_mute || wifi_lost) {
         yellow = LedState::LED_ON;
     } else if (!gps_heard) {
         yellow = LedState::LED_BLINK_SLOW;
@@ -410,7 +413,8 @@ void loop() {
         DEBUG_INFO("Free Heap: " + String(DebugUtils::getFreeHeap()) + " bytes");
         if (batteryMonitor.isAvailable()) {
             DEBUG_INFO("Battery: cell=" + String(batteryMonitor.getVoltageMv()) + " mV" +
-                       " pin=" + String(batteryMonitor.getPinVoltageMv()) + " mV");
+                       " pin=" + String(batteryMonitor.getPinVoltageMv()) + " mV" +
+                       " low=" + String(batteryMonitor.isLow() ? "YES" : "NO"));
         }
         DEBUG_INFO(beaconManager.getStateString());
         DEBUG_INFO(beaconManager.getTxStatsString());

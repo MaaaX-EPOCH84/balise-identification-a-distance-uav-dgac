@@ -31,7 +31,8 @@ BatteryMonitor batteryMonitor;
 // ================================================================================================
 
 BatteryMonitor::BatteryMonitor()
-    : _pin(-1), _pin_mv(0), _cell_mv(0), _last_read_ms(0) {
+    : _pin(-1), _pin_mv(0), _cell_mv(0), _last_read_ms(0),
+      _low(false), _below(false), _below_since_ms(0) {
 }
 
 // ================================================================================================
@@ -68,4 +69,24 @@ void BatteryMonitor::read() {
     _pin_mv = (sum + BATTERY_SAMPLES / 2) / BATTERY_SAMPLES;
     _cell_mv = static_cast<uint32_t>(_pin_mv * BATTERY_DIVIDER_RATIO + 0.5);
     _last_read_ms = millis();
+
+    // A zero reading means the divider is not reading anything, not an empty cell
+    if (_cell_mv == 0) {
+        return;
+    }
+
+    if (_cell_mv < BATTERY_LOW_MV) {
+        if (!_below) {
+            _below = true;
+            _below_since_ms = _last_read_ms;
+        }
+        if (_last_read_ms - _below_since_ms >= BATTERY_LOW_HOLD_MS) {
+            _low = true;
+        }
+    } else {
+        _below = false;
+        if (_cell_mv > BATTERY_LOW_RECOVER_MV) {
+            _low = false;
+        }
+    }
 }

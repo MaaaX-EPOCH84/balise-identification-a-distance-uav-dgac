@@ -40,6 +40,24 @@
 // Time between two readings: a Li-ion cell discharges over hours, not seconds
 #define BATTERY_READ_PERIOD_MS      1000
 
+// Low battery alert. The entry threshold is the cell voltage 10 minutes before the protection
+// cut, read on the reference discharge of 2 November 2026 (median over 60 s, GPS tracking,
+// radio transmitting). The exit threshold sits about 20 minutes before the cut: a cell only
+// climbs back above it when a charger is connected. Both can be overridden at build time to
+// exercise the alert on the bench without waiting for a discharge.
+#ifndef BATTERY_LOW_MV
+#define BATTERY_LOW_MV              3282
+#endif
+#ifndef BATTERY_LOW_RECOVER_MV
+#define BATTERY_LOW_RECOVER_MV      3430
+#endif
+
+// The cell must stay below the entry threshold this long: a transmit peak sags the rail for a
+// moment and must not raise the alert
+#ifndef BATTERY_LOW_HOLD_MS
+#define BATTERY_LOW_HOLD_MS         30000
+#endif
+
 // ================================================================================================
 // BATTERY MONITOR CLASS
 // ================================================================================================
@@ -82,6 +100,13 @@ public:
      */
     uint32_t getPinVoltageMv() const { return _pin_mv; }
 
+    /**
+     * Is the cell low enough that the aircraft must land within about 10 minutes?
+     * Enters after BATTERY_LOW_HOLD_MS below BATTERY_LOW_MV, leaves above BATTERY_LOW_RECOVER_MV.
+     * Always false when no measurement is wired.
+     */
+    bool isLow() const { return _low; }
+
 private:
     void read();
 
@@ -89,6 +114,9 @@ private:
     uint32_t _pin_mv;
     uint32_t _cell_mv;
     uint32_t _last_read_ms;
+    bool _low;
+    bool _below;
+    uint32_t _below_since_ms;
 };
 
 // Global instance

@@ -39,7 +39,7 @@
 //   DD len | 02 42 49 (locally administered OUI) | 01 (type) | 01 (version)
 //   seq u32 | boot u32 | uptime s u32 | cell mV u16 | pin mV u16
 //   DGAC frames u32 | longest DGAC gap ms u16 | gaps over 3 s u16 | flags u8
-// Flags: bit 0 live fix, bit 1 home set, bit 2 position frozen.
+// Flags: bit 0 live fix, bit 1 home set, bit 2 position frozen, bit 3 low battery alert.
 // ================================================================================================
 
 #ifdef TELEMETRIE_BATTERIE

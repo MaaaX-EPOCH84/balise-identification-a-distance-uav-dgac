@@ -93,6 +93,7 @@ enum class LedState : uint8_t {
     LED_MORSE_OK = 5,        // Morse code "OK"
     LED_MORSE_ERROR = 6,     // Morse code for error
     LED_MORSEcustom = 7,     // Custom Morse pattern
+    LED_BATTERY_LOW = 8,     // Two short flashes and a long one, then a pause
 };
 
 // ================================================================================================
@@ -265,6 +266,10 @@ private:
     uint16_t _morse_index = 0;
     uint32_t _morse_start_time = 0;
     bool _morse_complete = true;
+
+    // Low battery pattern: index of the running step (even = lit, odd = dark) and its start
+    uint8_t _pattern_step = 0;
+    uint32_t _pattern_step_start = 0;
     
     // -------------------------------------------------------------------------------------------
     // INTERNAL FUNCTIONS
@@ -276,6 +281,11 @@ private:
      * @param on true to turn on, false to turn off
      */
     void setPin(bool on);
+
+    /**
+     * Advance the low battery pattern; called on every update() while the state is active
+     */
+    void updateBatteryLow();
 
     /**
      * Check if pin is PWM capable
