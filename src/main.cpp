@@ -35,6 +35,7 @@
 #include "hardware/battery_monitor.h"
 #include "network/wifi_manager.h"
 #include "utils/debug_utils.h"
+#include "utils/string_utils.h"
 #ifdef TELEMETRIE_BATTERIE
 #include "beacon/bench_telemetry.h"
 #endif
@@ -191,11 +192,12 @@ void setup() {
     DEBUG_INFO("GPS navigation settings (UBX-CFG-NAV5): " + String(gpsManager.getNavigationStatus()));
     
     // -------------------------------------------------------------------------------------------
-    // Initialize WiFi (beacon transmission mode only)
+    // Initialize WiFi: visible open AP, carrying the DGAC frames
     // -------------------------------------------------------------------------------------------
     // NOTE: DGAC beacon frames are sent via esp_wifi_80211_tx() on the AP interface
-    // (see biadud_platform.cpp:sendBeaconFrame), so WiFi must stay active even though the
-    // config web server / captive portal are not started in this minimal build.
+    // (see biadud_platform.cpp:sendBeaconFrame), so WiFi must stay active at all times.
+    // The AP is visible and open so that a phone can join it; the password, when set,
+    // protects the configuration pages, not the connection.
     // TODO Phase 2: config UI (web server + captive portal DNS) — code exists in
     // network/web_server.h and network/dns_server.h, just not wired up yet.
     DEBUG_INFO("Initializing WiFi (beacon mode)...");
@@ -206,9 +208,20 @@ void setup() {
 
     String ssid = String(prefs.ssid[0] ? prefs.ssid : WIFI_SSID_PREFIX);
 
-    _wifi_ready = wifiManager.startBeaconMode(ssid, WIFI_AP_CHANNEL, true);
+    // AP address from the preferences. The default, 8.8.4.4 (Android's secondary DNS), comes
+    // from the reference sketch, which uses it for its captive portal.
+    IPAddress ap_ip, ap_gateway, ap_subnet;
+    if (StringUtils::stringToIPAddress(prefs.ip_local, ap_ip) &&
+        StringUtils::stringToIPAddress(prefs.ip_gateway, ap_gateway) &&
+        StringUtils::stringToIPAddress(prefs.ip_subnet, ap_subnet)) {
+        wifiManager.setStaticIP(ap_ip, ap_gateway, ap_subnet);
+    } else {
+        DEBUG_WARN("Invalid AP address in preferences, keeping the system default");
+    }
+
+    _wifi_ready = wifiManager.startBeaconMode(ssid, WIFI_AP_CHANNEL, false);
     if (_wifi_ready) {
-        DEBUG_INFO("WiFi beacon mode started: " + ssid);
+        DEBUG_INFO("WiFi beacon mode started: " + ssid + " at " + wifiManager.getLocalIPString());
     } else {
         DEBUG_ERROR("Failed to start WiFi beacon mode!");
     }

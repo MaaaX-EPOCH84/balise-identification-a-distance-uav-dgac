@@ -432,9 +432,12 @@ bool WiFiManager::startBeaconMode(const String& ssid, int channel, bool hidden) 
         // For ESP32, we need to enable the AP interface for beacon transmission
         // This is a special configuration that allows sending raw 802.11 packets
         
-        // Configure WiFi in AP mode with hidden SSID
+        // Open AP: the DGAC frames need its interface, and a phone joins it to reach the
+        // portal. The address goes in before the AP starts, so that its DHCP server hands
+        // out leases from that network.
         WiFi.mode(WIFI_AP);
-        WiFi.softAP(ssid.c_str(), "", channel, hidden);
+        setupStaticIP();
+        WiFi.softAP(ssid.c_str(), "", channel, hidden, WIFI_MAX_CLIENTS);
         
         // Set output power to maximum for beacon transmission
         esp_wifi_set_max_tx_power(80); // 80 * 0.25dBm = 20 dBm (maximum)
