@@ -405,6 +405,22 @@ String DroneIdFr::getCurrentPosition() const {
     return String(buffer);
 }
 
+void DroneIdFr::getFrameValues(DroneIdFrValues& values) const {
+    // Same conversions as generateBeaconFrame(): a page built on these values shows what a
+    // receiver decodes
+    const size_t id_length = std::min(static_cast<size_t>(TLV_LENGTH[ID_FR]), sizeof(values.id) - 1);
+    memcpy(values.id, _droneID, id_length);
+    values.id[id_length] = '\0';
+    values.latitude = toFrameCoordinate(_latitude);
+    values.longitude = toFrameCoordinate(_longitude);
+    values.altitude = _altitude;
+    values.height = _height;
+    values.home_latitude = toFrameCoordinate(_home_latitude);
+    values.home_longitude = toFrameCoordinate(_home_longitude);
+    values.ground_speed = static_cast<uint8_t>(std::round(_ground_speed));
+    values.heading = _heading;
+}
+
 // ================================================================================================
 // PRIVATE HELPER FUNCTIONS
 // ================================================================================================

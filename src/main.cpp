@@ -34,6 +34,8 @@
 #include "hardware/led_manager.h"
 #include "hardware/battery_monitor.h"
 #include "network/wifi_manager.h"
+#include "network/web_server.h"
+#include "network/status_page.h"
 #include "utils/debug_utils.h"
 #include "utils/string_utils.h"
 #ifdef TELEMETRIE_BATTERIE
@@ -82,6 +84,30 @@ static uint32_t _gps_bytes_read = 0;
 static bool _system_initialized = false;
 static bool _wifi_ready = false;
 static bool _gps_ready = false;
+
+// Status page. The server runs in a task of its own: in the emission loop, a request taking
+// more than 200 ms when the frame was due pushed the gap past 3 s (5 times in 10 min on
+// 11 November 2026). The loop builds the values, the server task only sends a copy of them,
+// so no manager is ever read from two tasks.
+static volatile uint32_t _web_max_us = 0;      // Longest handleClient() call since boot
+static volatile uint32_t _web_slow_count = 0;  // Calls above WEB_SLOW_MS
+static volatile uint32_t _web_status_count = 0; // /status.json answers: proves the page still polls
+#define WEB_SLOW_MS              100
+#define WEB_TASK_STACK           6144
+#define WEB_TASK_PRIORITY        1     // Same as loopTask: time-sliced, never ahead of it
+#define WEB_TASK_PERIOD_MS       5
+#define STATUS_JSON_SIZE         640
+#define STATUS_REFRESH_MS        500
+
+static SemaphoreHandle_t _status_mutex = nullptr;
+static char _status_body[STATUS_JSON_SIZE];    // JSON members after "age" and the closing brace
+static volatile uint32_t _status_last_send_ms = 0;
+static volatile bool _status_has_frame = false;
+
+static void handleStatusPage();
+static void handleStatusJson();
+static void refreshStatusJson();
+static void webTask(void* parameters);
 
 // Link supervision: last time the decoded sentence count moved
 static uint32_t _gps_sentences_seen = 0;
@@ -231,6 +257,27 @@ void setup() {
     // -------------------------------------------------------------------------------------------
     DEBUG_INFO("Initializing beacon manager...");
     beaconManager.initialize(prefs.uav_id, ssid.c_str(), WIFI_AP_CHANNEL);
+
+    // -------------------------------------------------------------------------------------------
+    // Status page, read-only, on the AP
+    // -------------------------------------------------------------------------------------------
+    if (_wifi_ready) {
+        _status_mutex = xSemaphoreCreateMutex();
+        if (_status_mutex) {
+            refreshStatusJson();
+        }
+        webServer.begin(80);
+        webServer.onRoot(handleStatusPage);
+        webServer.onStatus(handleStatusJson);
+        webServer.start();
+        if (_status_mutex &&
+            xTaskCreate(webTask, "web", WEB_TASK_STACK, nullptr, WEB_TASK_PRIORITY, nullptr) == pdPASS) {
+            DEBUG_INFO("Status page on http://" + wifiManager.getLocalIPString() + "/");
+        } else {
+            webServer.stop();
+            DEBUG_ERROR("Status page not started: no task");
+        }
+    }
     
     _system_initialized = true;
     DEBUG_INFO("==============================================");
@@ -259,6 +306,150 @@ static bool isGpsMute() {
         _gps_last_sentence_ms = millis();
     }
     return (millis() - _gps_last_sentence_ms) >= GPS_SILENCE_MS;
+}
+
+// ================================================================================================
+// STATUS PAGE
+// ================================================================================================
+
+/**
+ * Append formatted text to a fixed buffer. Once full, n stays at or above size, which the
+ * caller checks: a truncated answer is never sent.
+ */
+static void appendf(char* buffer, size_t size, size_t* n, const char* format, ...)
+    __attribute__((format(printf, 4, 5)));
+
+static void appendf(char* buffer, size_t size, size_t* n, const char* format, ...) {
+    if (*n >= size) {
+        return;
+    }
+    va_list args;
+    va_start(args, format);
+    const int written = vsnprintf(buffer + *n, size - *n, format, args);
+    va_end(args);
+    if (written < 0) {
+        *n = size;
+    } else {
+        *n += static_cast<size_t>(written);
+    }
+}
+
+static void handleStatusPage() {
+    webServer.send_P(200, PSTR("text/html; charset=utf-8"), STATUS_PAGE_HTML);
+}
+
+/**
+ * Build the values polled by the status page, in the loop task. The frame fields are those of
+ * the last frame sent, in the units a receiver decodes (coordinates in 1e-5 degree), so that
+ * the page matches it. The age of that frame is added by the server task when it answers.
+ */
+static void refreshStatusJson() {
+    static char json[STATUS_JSON_SIZE];
+    size_t n = 0;
+
+    const char* state = "wait";
+    if (beaconManager.isReady()) {
+        state = beaconManager.isPositionFrozen() ? "frozen" : "live";
+    }
+    const uint32_t frames = beaconManager.getFrameCount();
+
+    appendf(json, sizeof(json), &n, "\"up\":%lu,\"state\":\"%s\",\"frames\":%lu,\"maxgap\":%lu,\"over\":%lu",
+        static_cast<unsigned long>(millis() / 1000), state,
+        static_cast<unsigned long>(frames),
+        static_cast<unsigned long>(beaconManager.getMaxIntervalMs()),
+        static_cast<unsigned long>(beaconManager.getOverIntervalCount()));
+
+    DroneIdFrValues frame;
+    if (beaconManager.getLastSentFrame(frame)) {
+        // The identifier comes from the preferences: keep it to characters that need no
+        // escaping in JSON
+        for (char* c = frame.id; *c; c++) {
+            if (!isalnum(static_cast<unsigned char>(*c))) {
+                *c = '?';
+            }
+        }
+        appendf(json, sizeof(json), &n, ",\"frame\":{\"id\":\"%s\",\"lat\":%ld,\"lon\":%ld,\"alt\":%d,\"h\":%d,"
+            "\"hlat\":%ld,\"hlon\":%ld,\"spd\":%u,\"hdg\":%u}",
+            frame.id, static_cast<long>(frame.latitude), static_cast<long>(frame.longitude),
+            frame.altitude, frame.height,
+            static_cast<long>(frame.home_latitude), static_cast<long>(frame.home_longitude),
+            static_cast<unsigned>(frame.ground_speed), static_cast<unsigned>(frame.heading));
+    } else {
+        appendf(json, sizeof(json), &n, ",\"frame\":null");
+    }
+
+    const bool gps_mute = isGpsMute();
+    const GpsData& gps = gpsManager.getData();
+    appendf(json, sizeof(json), &n, ",\"gps\":{\"fix\":%s,\"sats\":%u,\"hdop\":%.2f,\"mute\":%s}",
+        (gps.has_fix && !gps_mute) ? "true" : "false",
+        static_cast<unsigned>(gps.satellites),
+        isfinite(gps.hdop) ? static_cast<double>(gps.hdop) : 99.99,   // nan is not JSON
+        gps_mute ? "true" : "false");
+
+    if (batteryMonitor.isAvailable()) {
+        appendf(json, sizeof(json), &n, ",\"bat\":{\"mv\":%u,\"low\":%s}",
+            static_cast<unsigned>(batteryMonitor.getVoltageMv()),
+            batteryMonitor.isLow() ? "true" : "false");
+    } else {
+        appendf(json, sizeof(json), &n, ",\"bat\":null");
+    }
+
+    if (beaconManager.hasMaxima()) {
+        appendf(json, sizeof(json), &n, ",\"max\":{\"spd\":%.1f,\"h\":%d}",
+            beaconManager.getMaxGroundSpeed(), beaconManager.getMaxHeight());
+    } else {
+        appendf(json, sizeof(json), &n, ",\"max\":null");
+    }
+    appendf(json, sizeof(json), &n, "}");
+
+    if (n >= sizeof(json)) {
+        snprintf(json, sizeof(json), "\"error\":\"status too long\"");
+    }
+
+    if (xSemaphoreTake(_status_mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+        memcpy(_status_body, json, sizeof(_status_body));
+        _status_last_send_ms = beaconManager.getLastSendTime();
+        _status_has_frame = frames > 0;
+        xSemaphoreGive(_status_mutex);
+    }
+}
+
+/**
+ * Answer /status.json, in the server task: a copy of what the loop built, plus the age of the
+ * last frame computed now, so that it stays right between two refreshes.
+ */
+static void handleStatusJson() {
+    static char json[STATUS_JSON_SIZE + 32];
+    const uint32_t age_ms = _status_has_frame ? millis() - _status_last_send_ms : 0;
+    const int head = snprintf(json, sizeof(json), "{\"age\":%lu,", static_cast<unsigned long>(age_ms));
+    if (head < 0 || xSemaphoreTake(_status_mutex, pdMS_TO_TICKS(100)) != pdTRUE) {
+        webServer.sendServerError("status unavailable");
+        return;
+    }
+    strlcpy(json + head, _status_body, sizeof(json) - head);
+    xSemaphoreGive(_status_mutex);
+    _web_status_count = _web_status_count + 1;
+    webServer.sendBuffer(200, "application/json", json);
+}
+
+/**
+ * Server task. Same priority as loopTask, so the scheduler shares the processor tick by tick
+ * when both run, and gives it back to the loop as soon as the server waits on the network.
+ */
+static void webTask(void* parameters) {
+    (void)parameters;
+    for (;;) {
+        const uint32_t start_us = micros();
+        webServer.handleClient();
+        const uint32_t elapsed_us = micros() - start_us;
+        if (elapsed_us > _web_max_us) {
+            _web_max_us = elapsed_us;
+        }
+        if (elapsed_us > WEB_SLOW_MS * 1000UL) {
+            _web_slow_count = _web_slow_count + 1;
+        }
+        vTaskDelay(pdMS_TO_TICKS(WEB_TASK_PERIOD_MS));
+    }
 }
 
 /**
@@ -406,6 +597,15 @@ void loop() {
         beaconManager.sendBeaconFrame();
     }
 
+    // -------------------------------------------------------------------------------------------
+    // Values for the status page, served by its own task
+    // -------------------------------------------------------------------------------------------
+    static uint32_t _last_status_json_ms = 0;
+    if (_status_mutex && hasElapsed(_last_status_json_ms, STATUS_REFRESH_MS)) {
+        _last_status_json_ms = millis();
+        refreshStatusJson();
+    }
+
 #ifdef TELEMETRIE_BATTERIE
     // Bench build only: battery figures in a frame of their own, from boot on, fix or not
     if (_wifi_ready) {
@@ -454,6 +654,14 @@ void loop() {
 
         if (_wifi_ready) {
             DEBUG_INFO(wifiManager.getNetworkInfo());
+        }
+        if (_status_mutex) {
+            DEBUG_INFO("Web: max=" + String(_web_max_us / 1000.0, 1) + " ms" +
+                       " slow=" + String(_web_slow_count) +
+                       " status=" + String(_web_status_count));
+            // Written by this task only: read without the lock. Compared with the bench
+            // receiver to check that the page shows what was sent.
+            DEBUG_INFO(String("Status JSON: {") + _status_body);
         }
     }
 }

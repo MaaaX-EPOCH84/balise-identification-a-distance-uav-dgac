@@ -104,6 +104,13 @@ public:
      */
     void onNotFound(void (*handler)());
 
+    /**
+     * Set the handler of /status.json, the values the status page polls
+     *
+     * @param handler Function to call
+     */
+    void onStatus(void (*handler)());
+
     // -------------------------------------------------------------------------------------------
     // STATUS CHECKS
     // -------------------------------------------------------------------------------------------
@@ -158,6 +165,16 @@ public:
      * @param json JSON string to send
      */
     void sendJson(int code, const String& json);
+
+    /**
+     * Send a response from a caller's buffer, without building a String: the status page
+     * polls every 3 s for hours, and a String per answer fragments the heap
+     *
+     * @param code HTTP status code
+     * @param content_type MIME type
+     * @param content Null-terminated content
+     */
+    void sendBuffer(int code, const char* content_type, const char* content);
 
     /**
      * Send plain text response
@@ -356,6 +373,7 @@ private:
     void (*_root_handler)() = nullptr;
     void (*_favicon_handler)() = nullptr;
     void (*_not_found_handler)() = nullptr;
+    void (*_status_handler)() = nullptr;
     
     // Current client tracking
     mutable bool _has_current_client = false;
@@ -396,6 +414,6 @@ private:
 };
 
 // Global instance
-// extern WebServerManager webServer;
+extern WebServerManager webServer;
 
 #endif // #ifndef WEB_SERVER_H

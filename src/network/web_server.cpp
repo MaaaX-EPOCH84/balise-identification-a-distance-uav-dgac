@@ -82,6 +82,13 @@ void WebServerManager::start() {
     // Setup default handlers
     getServer(_server_ptr).on("/", [this]() { handleRoot(); });
     getServer(_server_ptr).on("/favicon.ico", [this]() { handleFaviconRequest(); });
+    getServer(_server_ptr).on("/status.json", [this]() {
+        if (_status_handler) {
+            _status_handler();
+        } else {
+            sendNotFound();
+        }
+    });
     getServer(_server_ptr).onNotFound([this]() { handleNotFound(); });
     
     // Start server
@@ -128,6 +135,10 @@ void WebServerManager::onNotFound(void (*handler)()) {
     _not_found_handler = handler;
 }
 
+void WebServerManager::onStatus(void (*handler)()) {
+    _status_handler = handler;
+}
+
 // ================================================================================================
 // STATUS CHECKS
 // ================================================================================================
@@ -160,6 +171,11 @@ void WebServerManager::send_P(int code, PGM_P content_type, PGM_P content) {
 
 void WebServerManager::sendJson(int code, const String& json) {
     getServer(_server_ptr).send(code, "application/json", json);
+}
+
+void WebServerManager::sendBuffer(int code, const char* content_type, const char* content) {
+    getServer(_server_ptr).sendHeader("Cache-Control", "no-store");
+    getServer(_server_ptr).send(code, content_type, content);
 }
 
 void WebServerManager::sendText(int code, const String& text) {

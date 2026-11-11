@@ -119,6 +119,7 @@ void BeaconManager::updateGpsData(const GpsData& gps_data) {
         _position_known = true;
         _position_frozen = false;
         updateDroneIdFr(gps_data);
+        updateMaxima(gps_data);
     } else if (_position_known) {
         _position_frozen = true;
         GpsData frozen = _last_live_gps_data;
@@ -256,6 +257,10 @@ bool BeaconManager::sendBeaconFrame() {
         _last_send_ms = now_ms;
         _last_send_position = _last_gps_data.position;
         
+        // Keep what this frame carried, for the status page
+        _drone_id_fr.getFrameValues(_last_sent_values);
+        _has_sent_values = true;
+
         // Update DroneIdFr that we sent a frame
         _drone_id_fr.setLastSend();
     } else {
@@ -358,6 +363,18 @@ void BeaconManager::reset() {
     _last_live_gps_data.reset();
     _last_send_position.latitude = 0.0;
     _last_send_position.longitude = 0.0;
+    _has_sent_values = false;
+    _has_maxima = false;
+    _max_ground_speed = 0.0;
+    _max_height = 0;
+}
+
+bool BeaconManager::getLastSentFrame(DroneIdFrValues& values) const {
+    if (!_has_sent_values) {
+        return false;
+    }
+    values = _last_sent_values;
+    return true;
 }
 
 String BeaconManager::getStateString() const {
@@ -435,4 +452,23 @@ void BeaconManager::updateDroneIdFr(const GpsData& gps_data) {
     }
     
     // Note: Height is calculated automatically by DroneIdFr
+}
+
+void BeaconManager::updateMaxima(const GpsData& gps_data) {
+    // Called on live positions only, once the home position is set: the height then has its
+    // reference, and a frozen position, repeated while the fix is lost, measures nothing
+    DroneIdFrValues values;
+    _drone_id_fr.getFrameValues(values);
+    if (!_has_maxima) {
+        _has_maxima = true;
+        _max_ground_speed = gps_data.speed;
+        _max_height = values.height;
+        return;
+    }
+    if (gps_data.speed > _max_ground_speed) {
+        _max_ground_speed = gps_data.speed;
+    }
+    if (values.height > _max_height) {
+        _max_height = values.height;
+    }
 }

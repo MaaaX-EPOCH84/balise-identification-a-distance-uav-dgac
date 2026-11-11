@@ -189,6 +189,23 @@ public:
     uint32_t getLastSendTime() const { return _last_send_ms; }
 
     /**
+     * Get the fields of the last frame actually sent, as a receiver decodes them
+     *
+     * @param values Filled when a frame has been sent
+     * @return false while no frame has been sent yet
+     */
+    bool getLastSentFrame(DroneIdFrValues& values) const;
+
+    /**
+     * Highest ground speed and height since the home position was set, on live positions only
+     * (a frozen position repeats a value, it does not measure one). Raw values, unfiltered:
+     * a GPS jump raises them for good.
+     */
+    bool hasMaxima() const { return _has_maxima; }
+    double getMaxGroundSpeed() const { return _max_ground_speed; }
+    int16_t getMaxHeight() const { return _max_height; }
+
+    /**
      * Get the last send position
      * 
      * @return The last sent position
@@ -271,6 +288,13 @@ private:
     uint32_t _frame_count = 0;
     uint32_t _last_send_ms = 0;
     GpsCoordinates _last_send_position;
+    DroneIdFrValues _last_sent_values = {};
+    bool _has_sent_values = false;
+
+    // Maxima since the home position, live positions only
+    bool _has_maxima = false;
+    double _max_ground_speed = 0.0;  // m/s
+    int16_t _max_height = 0;         // m above home
     
     // State
     bool _initialized = false;
@@ -317,6 +341,7 @@ private:
      * @param gps_data The GPS data to use
      */
     void updateDroneIdFr(const GpsData& gps_data);
+    void updateMaxima(const GpsData& gps_data);
 };
 
 // Global beacon manager instance

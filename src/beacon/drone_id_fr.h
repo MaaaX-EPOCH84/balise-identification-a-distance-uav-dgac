@@ -29,6 +29,24 @@
 #include "../core/biadud_platform.h"
 
 // ================================================================================================
+// FRAME VALUES
+// The fields of the frame as they are encoded, in the units of the order: what a receiver
+// decodes, not the raw GPS values
+// ================================================================================================
+
+struct DroneIdFrValues {
+    char id[31];             // FR identifier, 30 characters
+    int32_t latitude;        // Degrees * 1e5
+    int32_t longitude;       // Degrees * 1e5
+    int16_t altitude;        // Meters above mean sea level
+    int16_t height;          // Meters above the home position
+    int32_t home_latitude;   // Degrees * 1e5
+    int32_t home_longitude;  // Degrees * 1e5
+    uint8_t ground_speed;    // Meters per second, rounded
+    uint16_t heading;        // Degrees, 0 to 359
+};
+
+// ================================================================================================
 // DRONE ID FR CLASS
 // Implements the French drone identification frame as stated in
 // https://www.legifrance.gouv.fr/eli/arrete/2019/12/27/ECOI1934044A/jo/texte
@@ -250,6 +268,14 @@ public:
      * @return String with current position info
      */
     String getCurrentPosition() const;
+
+    /**
+     * Get the fields as generateBeaconFrame() encodes them
+     *
+     * @param values Filled with the identifier, coordinates in 1e-5 degree, altitude, height,
+     *               rounded speed and heading
+     */
+    void getFrameValues(DroneIdFrValues& values) const;
 
 private:
     // -------------------------------------------------------------------------------------------
